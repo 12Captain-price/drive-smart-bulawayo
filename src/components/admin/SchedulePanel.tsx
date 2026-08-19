@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import {
   AlertCircle,
   CalendarDays,
+  CalendarRange,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -45,6 +47,7 @@ import { downloadSpreadsheet, parseCsv } from "@/lib/docs";
 import {
   errorMessage,
   findLessonConflict,
+  formatWeeklySchedule,
   renderTemplate,
   useInstructors,
   useLessons,
@@ -140,7 +143,7 @@ export function SchedulePanel({
   seedStudentId?: string | null;
   onSeedConsumed?: () => void;
 } = {}) {
-  const { items: lessons, add, update, remove } = useLessons();
+  const { items: lessons, add, addMany, update, remove } = useLessons();
   const { items: students } = useStudents();
   const { items: instructors } = useInstructors();
   const { items: packages } = usePackages();
@@ -178,6 +181,14 @@ export function SchedulePanel({
           add={add}
           seedStudentId={seedStudentId}
           onSeedConsumed={onSeedConsumed}
+        />
+        <WeeklyScheduleDialog
+          lessons={lessons}
+          students={students}
+          instructors={instructors}
+          packages={packages}
+          settings={settings}
+          addMany={addMany}
         />
         <BulkImportLessons
           lessons={lessons}
@@ -714,6 +725,323 @@ function AddLessonDialog({
             <Plus className="size-4" /> Schedule lesson
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* --------------------------- weekly schedule dialog -------------------------- */
+
+const WEEK_DAYS = [
+  { label: "Monday", short: "Mon" },
+  { label: "Tuesday", short: "Tue" },
+  { label: "Wednesday", short: "Wed" },
+  { label: "Thursday", short: "Thu" },
+  { label: "Friday", short: "Fri" },
+  { label: "Saturday", short: "Sat" },
+  { label: "Sunday", short: "Sun" },
+];
+
+type DaySelection = { enabled: boolean; time: string };
+
+/** Schedule a whole week of lessons for one student at once, then forward
+ *  the resulting plan to both the student and the instructor on WhatsApp in
+ *  a single message each — instead of adding and messaging one lesson at a
+ *  time. */
+function WeeklyScheduleDialog({
+  lessons,
+  students,
+  instructors,
+  packages,
+  settings,
+  addMany,
+}: {
+  lessons: Lesson[];
+  students: Student[];
+  instructors: Instructor[];
+  packages: Package[];
+  settings: SiteSettings;
+  addMany: (items: (Omit<Lesson, "id"> & { id?: string })[]) => Lesson[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [studentId, setStudentId] = useState("");
+  const [instructorId, setInstructorId] = useState("");
+  const [lessonType, setLessonType] = useState<LessonType>("driving");
+  const [minutes, setMinutes] = useState(60);
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()).toISOString().slice(0, 10));
+  const [notes, setNotes] = useState("");
+  const [days, setDays] = useState<Record<string, DaySelection>>(() =>
+    Object.fromEntries(WEEK_DAYS.map((d) => [d.short, { enabled: false, time: "09:00" }])),
+  );
+  const [result, setResult] = useState<{ created: Lesson[]; student: Student; instructor: Instructor } | null>(
+    null,
+  );
+
+  function reset() {
+    setStudentId("");
+    setInstructorId("");
+    setLessonType("driving");
+    setMinutes(60);
+    setWeekStart(startOfWeek(new Date()).toISOString().slice(0, 10));
+    setNotes("");
+    setDays(Object.fromEntries(WEEK_DAYS.map((d) => [d.short, { enabled: false, time: "09:00" }])));
+    setResult(null);
+  }
+
+  function toggleDay(short: string) {
+    setDays((prev) => ({ ...prev, [short]: { ...prev[short], enabled: !prev[short].enabled } }));
+  }
+
+  function setDayTime(short: string, time: string) {
+    setDays((prev) => ({ ...prev, [short]: { ...prev[short], time } }));
+  }
+
+  function submit() {
+    if (!studentId) return toast.error("Choose a student");
+    if (!instructorId) return toast.error("Choose an instructor");
+    const selected = WEEK_DAYS.map((d, i) => ({ ...d, index: i, ...days[d.short] })).filter(
+      (d) => d.enabled,
+    );
+    if (selected.length === 0) return toast.error("Pick at least one day");
+
+    const base = new Date(`${weekStart}T00:00`);
+    if (isNaN(base.getTime())) return toast.error("Pick a valid week start date");
+
+    const candidates: (Omit<Lesson, "id"> & { id?: string })[] = [];
+    const staged: Lesson[] = [];
+    const createdAt = new Date().toISOString();
+
+    for (const d of selected) {
+      const date = addDays(base, d.index);
+      const startsAt = toIso(date.toISOString().slice(0, 10), d.time);
+      if (!startsAt) return toast.error(`Invalid time for ${d.label}`);
+
+      const conflict = findLessonConflict([...lessons, ...staged], {
+        instructorId,
+        startsAt,
+        minutes,
+      });
+      if (conflict) {
+        const other = students.find((s) => s.id === conflict.studentId)?.name ?? "another student";
+        toast.error(`${d.label} ${d.time} clashes with ${other}'s lesson — adjust and try again.`);
+        return;
+      }
+
+      const lesson: Omit<Lesson, "id"> & { id?: string } = {
+        studentId,
+        instructorId,
+        lessonType,
+        startsAt,
+        minutes,
+        notes,
+        status: "scheduled",
+        createdAt,
+      };
+      candidates.push(lesson);
+      staged.push({ ...lesson, id: `staged-${staged.length}` });
+    }
+
+    const created = addMany(candidates);
+    const student = students.find((s) => s.id === studentId)!;
+    const instructor = instructors.find((i) => i.id === instructorId)!;
+    setResult({ created, student, instructor });
+    toast.success(`${created.length} lesson${created.length === 1 ? "" : "s"} scheduled`);
+  }
+
+  function closeDialog() {
+    setOpen(false);
+    reset();
+  }
+
+  const link = typeof window === "undefined" ? "" : `${window.location.origin}/my-lessons`;
+  const schedule = result ? formatWeeklySchedule(result.created) : "";
+  const studentMessage = result
+    ? renderTemplate(settings.waWeeklyPlanTemplate, {
+        recipient: result.student.name,
+        student: result.student.name,
+        instructor: result.instructor.name,
+        schedule,
+        link,
+      })
+    : "";
+  const instructorMessage = result
+    ? renderTemplate(settings.waWeeklyPlanTemplate, {
+        recipient: result.instructor.name,
+        student: result.student.name,
+        instructor: result.instructor.name,
+        schedule,
+        link,
+      })
+    : "";
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : closeDialog())}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <CalendarRange className="size-4" /> Schedule week
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+        {!result ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Schedule a week of lessons</DialogTitle>
+              <DialogDescription>
+                Pick a student, instructor, and one or more days — all lessons are created at once,
+                then you can forward the plan to both of them on WhatsApp.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <Label>Student</Label>
+                <select
+                  className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                >
+                  <option value="">Select a student…</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {s.phone}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Instructor</Label>
+                <select
+                  className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+                  value={instructorId}
+                  onChange={(e) => setInstructorId(e.target.value)}
+                >
+                  <option value="">Select an instructor…</option>
+                  {instructors.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label>Week starting (Monday)</Label>
+                  <Input
+                    type="date"
+                    value={weekStart}
+                    onChange={(e) => setWeekStart(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Type</Label>
+                  <ChipGroup
+                    size="sm"
+                    value={lessonType}
+                    options={LESSON_TYPES}
+                    onChange={setLessonType}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Duration</Label>
+                <div className="flex flex-wrap gap-2">
+                  {DURATION_PRESETS.map((m) => (
+                    <Button
+                      key={m}
+                      type="button"
+                      size="sm"
+                      variant={minutes === m ? "default" : "outline"}
+                      onClick={() => setMinutes(m)}
+                    >
+                      {m}m
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Days &amp; times</Label>
+                <div className="space-y-2">
+                  {WEEK_DAYS.map((d) => (
+                    <div key={d.short} className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={days[d.short].enabled ? "default" : "outline"}
+                        className="w-28 shrink-0"
+                        onClick={() => toggleDay(d.short)}
+                      >
+                        {d.label}
+                      </Button>
+                      <Input
+                        type="time"
+                        value={days[d.short].time}
+                        disabled={!days[d.short].enabled}
+                        onChange={(e) => setDayTime(d.short, e.target.value)}
+                        className="w-32"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Notes (optional, applied to every lesson)</Label>
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={submit}>
+                <CalendarRange className="size-4" /> Schedule week
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="text-success size-5" /> Week scheduled for{" "}
+                {result.student.name}
+              </DialogTitle>
+              <DialogDescription>
+                {result.created.length} lesson{result.created.length === 1 ? "" : "s"} with{" "}
+                {result.instructor.name}. Forward the plan below.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="bg-secondary/60 rounded-lg border p-3">
+                <p className="label-mono text-muted-foreground mb-2">Schedule</p>
+                <pre className="text-xs whitespace-pre-wrap">{schedule}</pre>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {result.student.phone && (
+                  <Button
+                    size="sm"
+                    className="bg-success text-success-foreground hover:bg-success/90"
+                    asChild
+                  >
+                    <a href={waLink(result.student.phone, studentMessage)} target="_blank" rel="noreferrer">
+                      <MessageCircle className="size-4" /> Send to student
+                    </a>
+                  </Button>
+                )}
+                {result.instructor.phone && (
+                  <Button size="sm" variant="outline" asChild>
+                    <a
+                      href={waLink(result.instructor.phone, instructorMessage)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <MessageCircle className="size-4" /> Send to instructor
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={closeDialog}>
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

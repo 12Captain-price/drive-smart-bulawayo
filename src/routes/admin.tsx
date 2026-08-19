@@ -94,6 +94,8 @@ import {
   WELCOME_TEMPLATE_TOKENS,
   INSTRUCTOR_LESSON_TEMPLATE_TOKENS,
   STUDENT_LESSON_TEMPLATE_TOKENS,
+  ENQUIRY_FOLLOWUP_TEMPLATE_TOKENS,
+  WEEKLY_PLAN_TEMPLATE_TOKENS,
   ENQUIRY_STATUSES,
   PAYMENT_STATUSES,
   STUDENT_STATUSES,
@@ -742,7 +744,7 @@ function EnquiriesPanel({ onScheduleNow }: { onScheduleNow: (studentId: string) 
         const clashing = (e.slots ?? []).some((s) =>
           e.days.some((d) => duplicate.has(slotKey(d, s))),
         );
-        const alreadyStudent = students.some(
+        const student = students.find(
           (s) => s.enquiryId === e.id || s.phone.replace(/\D/g, "") === e.phone.replace(/\D/g, ""),
         );
         return (
@@ -776,22 +778,13 @@ function EnquiriesPanel({ onScheduleNow }: { onScheduleNow: (studentId: string) 
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {alreadyStudent ? (
-                  <span className="text-success text-xs font-medium">Already enrolled</span>
-                ) : (
-                  <EnrollDialog
-                    trigger={
-                      <Button size="sm" variant="outline">
-                        <UserPlus className="size-4" /> Enroll
-                      </Button>
-                    }
-                    initialName={e.name}
-                    initialPhone={e.phone}
-                    initialPackageId={e.packageId}
-                    enquiry={e}
-                    onScheduleNow={(student) => onScheduleNow(student.id)}
-                  />
-                )}
+                {student && <span className="text-success text-xs font-medium">Already enrolled</span>}
+                <EnquiryDetailDialog
+                  enquiry={e}
+                  packages={packages}
+                  student={student}
+                  onScheduleNow={onScheduleNow}
+                />
                 <Confirm
                   label="enquiry"
                   onConfirm={() => guard(() => remove(e.id), "Enquiry deleted")}
@@ -802,6 +795,143 @@ function EnquiriesPanel({ onScheduleNow }: { onScheduleNow: (studentId: string) 
         );
       })}
     </div>
+  );
+}
+
+/* --------------------------- enquiry detail dialog -------------------------- */
+
+/** Full enquiry view — see every field, send a prefilled follow-up on
+ *  WhatsApp, and go straight from the enquiry into a scheduled lesson
+ *  (enrolling first if they're not a student yet) without leaving this
+ *  dialog. */
+function EnquiryDetailDialog({
+  enquiry: e,
+  packages,
+  student,
+  onScheduleNow,
+}: {
+  enquiry: Enquiry;
+  packages: Package[];
+  student: Student | undefined;
+  onScheduleNow: (studentId: string) => void;
+}) {
+  const { settings } = useSettings();
+  const [open, setOpen] = useState(false);
+  const pkg = packages.find((p) => p.id === e.packageId);
+
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    if (!open) return;
+    setMessage(
+      renderTemplate(settings.waEnquiryFollowUpTemplate, {
+        name: e.name,
+        phone: e.phone,
+        package: pkg ? `${pkg.name} ($${pkg.price})` : "—",
+        days: e.days.join(", ") || "any day",
+        times: e.times.join(", ") || "any time",
+        slots: e.slots?.join(", ") || "flexible",
+        ref: e.ref ?? "",
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Eye className="size-4" /> View
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{e.name}</DialogTitle>
+          <DialogDescription>
+            {e.ref && <span className="font-mono">{e.ref}</span>} · Enquired{" "}
+            {new Date(e.createdAt).toLocaleString()}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 text-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="label-mono text-muted-foreground">Phone</p>
+              <p className="font-mono">{e.phone}</p>
+            </div>
+            <div>
+              <p className="label-mono text-muted-foreground">Status</p>
+              <p className="capitalize">{e.status}</p>
+            </div>
+            <div>
+              <p className="label-mono text-muted-foreground">Package</p>
+              <p>{pkg ? `${pkg.name} ($${pkg.price})` : "—"}</p>
+            </div>
+            <div>
+              <p className="label-mono text-muted-foreground">Preferred days</p>
+              <p>{e.days.join(", ") || "any day"}</p>
+            </div>
+            <div>
+              <p className="label-mono text-muted-foreground">Preferred time of day</p>
+              <p>{e.times.join(", ") || "any time"}</p>
+            </div>
+            <div>
+              <p className="label-mono text-muted-foreground">Preferred slots</p>
+              <p>{e.slots?.join(", ") || "flexible"}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-2 border-t pt-3">
+            <Label htmlFor="enq-msg">Follow-up message</Label>
+            <Textarea
+              id="enq-msg"
+              rows={7}
+              className="font-mono text-xs"
+              value={message}
+              onChange={(ev) => setMessage(ev.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">Edit anything before you send it.</p>
+          </div>
+        </div>
+
+        <DialogFooter className="flex-wrap gap-2 sm:justify-between">
+          <Button
+            className="bg-success text-success-foreground hover:bg-success/90"
+            asChild
+          >
+            <a href={waLink(e.phone, message)} target="_blank" rel="noreferrer">
+              <MessageCircle className="size-4" /> Send message
+            </a>
+          </Button>
+          {student ? (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOpen(false);
+                onScheduleNow(student.id);
+              }}
+            >
+              <CalendarClock className="size-4" /> Schedule a lesson
+            </Button>
+          ) : (
+            <EnrollDialog
+              trigger={
+                <Button variant="outline">
+                  <UserPlus className="size-4" /> Convert to schedule
+                </Button>
+              }
+              initialName={e.name}
+              initialPhone={e.phone}
+              initialPackageId={e.packageId}
+              enquiry={e}
+              onScheduleNow={(created) => {
+                setOpen(false);
+                onScheduleNow(created.id);
+              }}
+            />
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1942,6 +2072,34 @@ function SettingsPanel() {
           />
           <p className="text-muted-foreground text-xs">
             Tokens: {STUDENT_LESSON_TEMPLATE_TOKENS.join(" ")}
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:col-span-2">
+          <Label>WhatsApp message — enquiry follow-up</Label>
+          <Textarea
+            rows={6}
+            className="font-mono text-xs"
+            value={settings.waEnquiryFollowUpTemplate}
+            onChange={(e) => save({ waEnquiryFollowUpTemplate: e.target.value })}
+          />
+          <p className="text-muted-foreground text-xs">
+            Tokens: {ENQUIRY_FOLLOWUP_TEMPLATE_TOKENS.join(" ")} — used by "Send message" on the
+            Enquiries tab.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:col-span-2">
+          <Label>WhatsApp message — weekly plan (student &amp; instructor)</Label>
+          <Textarea
+            rows={6}
+            className="font-mono text-xs"
+            value={settings.waWeeklyPlanTemplate}
+            onChange={(e) => save({ waWeeklyPlanTemplate: e.target.value })}
+          />
+          <p className="text-muted-foreground text-xs">
+            Tokens: {WEEKLY_PLAN_TEMPLATE_TOKENS.join(" ")} — {"{schedule}"} is the full list of
+            days/times, filled in automatically.
           </p>
         </div>
 

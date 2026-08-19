@@ -109,13 +109,15 @@ export const ENQUIRY_STATUSES: { value: EnquiryStatus; label: string }[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-/** Statuses that still hold a booking slot (block double booking). */
-export const ACTIVE_ENQUIRY_STATUSES: EnquiryStatus[] = [
-  "new",
-  "contacted",
-  "scheduled",
-  "enrolled",
-];
+/**
+ * Statuses that actually hold a booking slot (block double booking).
+ *
+ * Only "scheduled" and "enrolled" reserve a day+slot — those mean a real
+ * lesson has been arranged. "new"/"contacted" are just a learner's stated
+ * preference and must NOT block other enquirers from requesting the same
+ * day/slot, or from being converted onto it themselves.
+ */
+export const ACTIVE_ENQUIRY_STATUSES: EnquiryStatus[] = ["scheduled", "enrolled"];
 
 export interface Enquiry {
   id: string;
@@ -262,6 +264,10 @@ export interface SiteSettings {
   waInstructorLessonTemplate: string;
   /** WhatsApp message sent to a student when a lesson is scheduled. Supports tokens. */
   waStudentLessonTemplate: string;
+  /** WhatsApp follow-up message pre-filled from the Enquiries tab. Supports tokens. */
+  waEnquiryFollowUpTemplate: string;
+  /** WhatsApp message sent to a student or instructor with a whole week's lessons. Supports tokens. */
+  waWeeklyPlanTemplate: string;
 }
 
 /* --------------------------------- defaults -------------------------------- */
@@ -333,6 +339,24 @@ export const defaultSettings: SiteSettings = {
     "See you then!",
     "",
     "Check your lessons anytime: {link}",
+  ].join("\n"),
+  waEnquiryFollowUpTemplate: [
+    "Hi {name}, thanks for your enquiry with Auto Driving School!",
+    "Package: {package}",
+    "Preferred days: {days}",
+    "Preferred time of day: {times}",
+    "Preferred slots: {slots}",
+    "",
+    "Let us know if that still works and we'll get you booked in.",
+  ].join("\n"),
+  waWeeklyPlanTemplate: [
+    "Hi {recipient}, here's the weekly lesson plan:",
+    "Student: {student}",
+    "Instructor: {instructor}",
+    "",
+    "{schedule}",
+    "",
+    "Check anytime: {link}",
   ].join("\n"),
 };
 
@@ -587,6 +611,65 @@ interface RemoteTableConfig<T extends { id: string }> {
   ascending?: boolean;
   fromRow: (row: any) => T;
   toRow: (item: Partial<T>) => Record<string, unknown>;
+  /** Called once per row when Realtime delivers a fresh INSERT from another
+   *  session (not our own optimistic insert) — e.g. to toast "New enquiry". */
+  onRemoteInsert?: (row: T) => void;
+}
+
+/**
+ * One Supabase Realtime channel per table, shared across every component
+ * using that collection — without this, each mounted panel would open its
+ * own subscription and every INSERT/UPDATE would apply (and, for
+ * onRemoteInsert, notify) once per mounted instance.
+ *
+ * This is what makes new enquiries (and any other live edit, from any
+ * device/tab) show up immediately instead of only after a manual refresh —
+ * previously each table was only ever fetched once per page load.
+ */
+const remoteChannels = new Map<RemoteKey, ReturnType<typeof supabase.channel>>();
+
+function ensureRealtimeSubscribed<T extends { id: string }>(
+  key: RemoteKey,
+  table: string,
+  fromRow: (row: any) => T,
+  onRemoteInsert?: (row: T) => void,
+) {
+  if (typeof window === "undefined") return; // client-side only (SSR-safe)
+  if (remoteChannels.has(key)) return;
+
+  const channel = supabase
+    .channel(`realtime:${table}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table },
+      (payload: { eventType: string; new: any; old: any }) => {
+        const list = readRemote<T>(key);
+        if (payload.eventType === "INSERT") {
+          const row = fromRow(payload.new);
+          // Skip rows we already have — our own optimistic insert already
+          // added this id, so this is just Supabase echoing it back.
+          if (list.some((i) => i.id === row.id)) return;
+          writeRemote<T>(key, [row, ...list]);
+          onRemoteInsert?.(row);
+        } else if (payload.eventType === "UPDATE") {
+          const row = fromRow(payload.new);
+          writeRemote<T>(
+            key,
+            list.map((i) => (i.id === row.id ? row : i)),
+          );
+        } else if (payload.eventType === "DELETE") {
+          const deletedId = payload.old?.id;
+          if (!deletedId) return;
+          writeRemote<T>(
+            key,
+            list.filter((i) => i.id !== deletedId),
+          );
+        }
+      },
+    )
+    .subscribe();
+
+  remoteChannels.set(key, channel);
 }
 
 /** Same shape as useCollection, but backed by a Supabase table instead of
@@ -595,10 +678,11 @@ interface RemoteTableConfig<T extends { id: string }> {
 function useRemoteCollection<T extends { id: string }>(
   config: RemoteTableConfig<T>,
 ): Collection<T> {
-  const { key, table, orderColumn, ascending = false, fromRow, toRow } = config;
+  const { key, table, orderColumn, ascending = false, fromRow, toRow, onRemoteInsert } = config;
 
   useEffect(() => {
     ensureRemoteLoaded(key, table, orderColumn, fromRow, ascending);
+    ensureRealtimeSubscribed(key, table, fromRow, onRemoteInsert);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, table]);
 
@@ -894,6 +978,10 @@ export const useEnquiries = () =>
     orderColumn: "created_at",
     fromRow: enquiryFromRow,
     toRow: enquiryToRow,
+    onRemoteInsert: (row) =>
+      toast.message("New enquiry", {
+        description: `${row.name} · ${row.phone}`,
+      }),
   });
 
 function teamMemberFromRow(row: any): TeamMember {
@@ -1928,6 +2016,42 @@ export const STUDENT_LESSON_TEMPLATE_TOKENS = [
   "{type}",
   "{link}",
 ];
+
+/** Tokens available inside the enquiry follow-up WhatsApp template. */
+export const ENQUIRY_FOLLOWUP_TEMPLATE_TOKENS = [
+  "{name}",
+  "{phone}",
+  "{package}",
+  "{days}",
+  "{times}",
+  "{slots}",
+  "{ref}",
+];
+
+/** Tokens available inside the weekly-plan WhatsApp template. */
+export const WEEKLY_PLAN_TEMPLATE_TOKENS = [
+  "{recipient}",
+  "{student}",
+  "{instructor}",
+  "{schedule}",
+  "{link}",
+];
+
+/** Turns a batch of lessons for one student+instructor into a readable,
+ *  line-per-day block for the weekly-plan WhatsApp message. */
+export function formatWeeklySchedule(
+  entries: { startsAt: string; minutes: number; lessonType: LessonType }[],
+) {
+  return [...entries]
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+    .map((l) => {
+      const d = new Date(l.startsAt);
+      const day = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+      const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      return `${day} — ${time} (${l.minutes}min, ${l.lessonType})`;
+    })
+    .join("\n");
+}
 
 /* ---------------------------------- tests --------------------------------- */
 
