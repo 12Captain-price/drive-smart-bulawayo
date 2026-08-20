@@ -120,6 +120,7 @@ import {
   usePromotions,
   useSettings,
   useStudents,
+  useSubmissions,
   useTeam,
   useTestimonials,
   useTips,
@@ -382,9 +383,13 @@ function Admin() {
   // collections are already loaded for their own panels.
   const { items: navEnquiries } = useEnquiries();
   const { items: navPayments } = usePayments();
+  const { items: navTestimonials } = useTestimonials();
+  const { items: navSubmissions } = useSubmissions();
   const badgeCounts: Partial<Record<SectionName, number>> = {
     Enquiries: navEnquiries.filter((e) => e.status === "new").length,
     Payments: navPayments.filter((p) => p.status === "pending").length,
+    Testimonials: navTestimonials.filter((t) => t.status === "pending").length,
+    Tests: navSubmissions.filter((s) => !s.mark).length,
   };
 
   if (authLoading) {
