@@ -45,12 +45,17 @@ function About() {
   const { content } = useAboutContent();
   const { items: customSections } = useAboutSections();
   const { items: team } = useTeam();
-  const banner = publishedPhotos(photos, "about")[0];
-  const aroundPhotos = publishedPhotos(photos, "about").slice(1);
+  const aboutPhotos = publishedPhotos(photos, "about");
+  // First "about" upload is the top banner, next two fill the "Our Story" and
+  // "Test-ready" photos below it, and anything after that goes in the "Around
+  // our school" grid — each falls back to a placeholder until it's uploaded.
+  const banner = aboutPhotos[0];
+  const storyPhoto = aboutPhotos[1] ?? placeholderGallery[1];
+  const yardPhoto = aboutPhotos[2] ?? placeholderGallery[2];
+  const aroundPhotos = aboutPhotos.slice(3);
   const around = aroundPhotos.length
     ? aroundPhotos.map((p) => ({ src: p.src, caption: p.caption }))
     : placeholderGallery;
-  const story = placeholderGallery;
 
   return (
     <>
@@ -79,7 +84,7 @@ function About() {
             ))}
           </div>
           <img
-            src={story[1].src}
+            src={storyPhoto.src}
             alt="Instructor teaching a learner driver"
             loading="lazy"
             className="aspect-[4/3] w-full rounded-xl object-cover"
@@ -88,7 +93,7 @@ function About() {
 
         <div className="mt-12 grid items-center gap-8 md:grid-cols-2">
           <img
-            src={story[2].src}
+            src={yardPhoto.src}
             alt="Practice yard with cones"
             loading="lazy"
             className="aspect-[4/3] w-full rounded-xl object-cover md:order-2"
