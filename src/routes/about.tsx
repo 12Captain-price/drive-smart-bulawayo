@@ -83,20 +83,18 @@ function About() {
               </p>
             ))}
           </div>
-          <img
+          <FramedPhoto
             src={storyPhoto.src}
             alt="Instructor teaching a learner driver"
-            loading="lazy"
-            className="aspect-[4/3] w-full rounded-xl object-cover"
+            className="aspect-[4/3] w-full rounded-xl"
           />
         </div>
 
         <div className="mt-12 grid items-center gap-8 md:grid-cols-2">
-          <img
+          <FramedPhoto
             src={yardPhoto.src}
             alt="Practice yard with cones"
-            loading="lazy"
-            className="aspect-[4/3] w-full rounded-xl object-cover md:order-2"
+            className="aspect-[4/3] w-full rounded-xl md:order-2"
           />
           <div>
             <h3 className="text-xl font-semibold">Test-ready, not just road-ready</h3>
