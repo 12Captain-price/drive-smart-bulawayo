@@ -1,6 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { CheckCircle2, Clock, Download, MapPin, MessageCircle, Phone, Smartphone } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Download,
+  MapPin,
+  MessageCircle,
+  Pencil,
+  Phone,
+  Smartphone,
+} from "lucide-react";
 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -85,6 +97,84 @@ function Chip({
   );
 }
 
+const STEPS = ["Package", "Your details", "Days", "Times", "Slots", "Review"];
+
+function Stepper({ step, onJump }: { step: number; onJump: (i: number) => void }) {
+  return (
+    <div className="mb-8 flex items-center">
+      {STEPS.map((label, i) => {
+        const complete = i < step;
+        const current = i === step;
+        return (
+          <div key={label} className="flex flex-1 items-center last:flex-none">
+            <button
+              type="button"
+              onClick={() => complete && onJump(i)}
+              disabled={!complete}
+              className="flex flex-col items-center gap-1.5"
+            >
+              <span
+                className={cn(
+                  "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
+                  complete
+                    ? "border-success bg-success text-success-foreground cursor-pointer"
+                    : current
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-muted-foreground/30 text-muted-foreground",
+                )}
+              >
+                {complete ? <Check className="size-4" /> : i + 1}
+              </span>
+              <span
+                className={cn(
+                  "hidden text-[11px] font-medium sm:block",
+                  current ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {label}
+              </span>
+            </button>
+            {i < STEPS.length - 1 && (
+              <span
+                className={cn(
+                  "mx-2 h-px flex-1 transition-colors",
+                  complete ? "bg-success" : "bg-muted-foreground/20",
+                )}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PreviewRow({
+  label,
+  onEdit,
+  children,
+}: {
+  label: string;
+  onEdit: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div>
+        <p className="label-mono text-muted-foreground">{label}</p>
+        <p className="mt-0.5 text-sm font-medium">{children}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="text-muted-foreground hover:text-primary flex shrink-0 items-center gap-1 text-xs font-medium transition-colors"
+      >
+        <Pencil className="size-3.5" /> Edit
+      </button>
+    </div>
+  );
+}
+
 function Contact() {
   const { settings } = useSettings();
   const { items: packages } = usePackages();
@@ -105,6 +195,7 @@ function Contact() {
   const [waMessage, setWaMessage] = useState("");
   const [receipt, setReceipt] = useState<string | null>(null);
   const [reference, setReference] = useState("");
+  const [step, setStep] = useState(0);
 
   const taken = useMemo(() => bookedSlotKeys(enquiries), [enquiries]);
   /** A slot is unavailable when every selected day already has it booked. */
@@ -117,6 +208,18 @@ function Contact() {
     setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
   const mapQuery = encodeURIComponent(settings.address);
+
+  const selectedPackage = packages.find((p) => p.id === packageId);
+  const stepValid = [
+    !!packageId,
+    name.trim().length > 0 && phone.trim().length > 0,
+    true,
+    true,
+    clashes.length === 0,
+    true,
+  ];
+  const goNext = () => stepValid[step] && setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -261,127 +364,209 @@ function Contact() {
               </Card>
 
             ) : (
-              <form onSubmit={submit} className="space-y-8">
-                <div>
-                  <h2 className="label-mono text-accent">Step 1 — choose a package</h2>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    {packages.map((p) => (
-                      <button
-                        type="button"
-                        key={p.id}
-                        onClick={() => setPackageId(p.id)}
-                        className={cn(
-                          "rounded-lg border p-4 text-left transition-all active:scale-[0.99]",
-                          packageId === p.id
-                            ? "border-primary ring-primary/30 ring-2"
-                            : "hover:border-primary/50 hover:bg-secondary/50",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="font-semibold">{p.name}</span>
-                          <span className="text-primary font-mono font-bold">${p.price}</span>
-                        </div>
-                        <span className="label-mono text-muted-foreground mt-1 block">
-                          {p.lessons} lessons
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              <Card>
+                <CardContent className="pt-6">
+                  <Stepper step={step} onJump={setStep} />
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Your name</Label>
-                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="phone">Phone / WhatsApp</Label>
-                    <Input
-                      id="phone"
-                      inputMode="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      maxLength={25}
-                      placeholder="078 000 0000"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <h2 className="label-mono text-accent">Step 2 — preferred days</h2>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {DAYS.map((d) => (
-                      <Chip key={d} active={days.includes(d)} onClick={() => toggle(days, setDays, d)}>
-                        {d}
-                      </Chip>
-                    ))}
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {TIMES.map((t) => (
-                      <Chip key={t} active={times.includes(t)} onClick={() => toggle(times, setTimes, t)}>
-                        {t}
-                      </Chip>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h2 className="label-mono text-accent">Step 3 — preferred time slots</h2>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    Pick one or more lesson start times that suit you. Slots already booked on all
-                    your chosen days are crossed out.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {TIME_SLOTS.map((s) => {
-                      const unavailable = slotUnavailable(s);
-                      return (
-                        <Chip
-                          key={s}
-                          active={slots.includes(s)}
-                          disabled={unavailable}
-                          title={unavailable ? "Already booked" : undefined}
-                          onClick={() => toggle(slots, setSlots, s)}
-                        >
-                          {s}
-                        </Chip>
-                      );
-                    })}
-                  </div>
-                  {clashes.length > 0 && (
-                    <p className="text-destructive mt-3 text-xs">
-                      Already booked: {clashes.join(", ")} — please choose another time.
-                    </p>
-                  )}
-                </div>
-
-
-
-                {/* honeypot — hidden from real users */}
-                <input
-                  type="text"
-                  tabIndex={-1}
-                  autoComplete="off"
-                  aria-hidden="true"
-                  value={honeypot}
-                  onChange={(e) => setHoneypot(e.target.value)}
-                  className="absolute left-[-9999px] h-0 w-0 opacity-0"
-                />
-
-                <div>
-                  <Button
-                    type="submit"
-                    size="lg"
-                    disabled={submitting || clashes.length > 0}
-                    className="w-full sm:w-auto"
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (step === STEPS.length - 1) submit(e);
+                      else goNext();
+                    }}
+                    className="space-y-6"
                   >
-                    {submitting ? "Sending…" : "Send booking request"}
-                  </Button>
+                    {step === 0 && (
+                      <div>
+                        <h2 className="text-lg font-semibold">Choose a package</h2>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                          Pick the lesson package you'd like to book.
+                        </p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {packages.map((p) => (
+                            <button
+                              type="button"
+                              key={p.id}
+                              onClick={() => setPackageId(p.id)}
+                              className={cn(
+                                "rounded-lg border p-4 text-left transition-all active:scale-[0.99]",
+                                packageId === p.id
+                                  ? "border-primary ring-primary/30 ring-2"
+                                  : "hover:border-primary/50 hover:bg-secondary/50",
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-semibold">{p.name}</span>
+                                <span className="text-primary font-mono font-bold">${p.price}</span>
+                              </div>
+                              <span className="label-mono text-muted-foreground mt-1 block">
+                                {p.lessons} lessons
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                  <p className="text-muted-foreground mt-3 text-xs">
-                    We reply within a few hours — no spam, ever.
-                  </p>
-                </div>
-              </form>
+                    {step === 1 && (
+                      <div>
+                        <h2 className="text-lg font-semibold">Your details</h2>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                          So we know who's booking and how to reach you.
+                        </p>
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          <div className="grid gap-2">
+                            <Label htmlFor="name">Your name</Label>
+                            <Input
+                              id="name"
+                              value={name}
+                              onChange={(e) => setName(e.target.value)}
+                              maxLength={60}
+                              autoFocus
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="phone">Phone / WhatsApp</Label>
+                            <Input
+                              id="phone"
+                              inputMode="tel"
+                              value={phone}
+                              onChange={(e) => setPhone(e.target.value)}
+                              maxLength={25}
+                              placeholder="078 000 0000"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {step === 2 && (
+                      <div>
+                        <h2 className="text-lg font-semibold">Preferred days</h2>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                          Which days suit you? Leave blank if you're flexible.
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {DAYS.map((d) => (
+                            <Chip key={d} active={days.includes(d)} onClick={() => toggle(days, setDays, d)}>
+                              {d}
+                            </Chip>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {step === 3 && (
+                      <div>
+                        <h2 className="text-lg font-semibold">Preferred time of day</h2>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                          Morning, afternoon or evening — pick as many as suit you.
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {TIMES.map((t) => (
+                            <Chip key={t} active={times.includes(t)} onClick={() => toggle(times, setTimes, t)}>
+                              {t}
+                            </Chip>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {step === 4 && (
+                      <div>
+                        <h2 className="text-lg font-semibold">Preferred time slots</h2>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                          Pick one or more lesson start times. Slots already booked on all your
+                          chosen days are crossed out.
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {TIME_SLOTS.map((s) => {
+                            const unavailable = slotUnavailable(s);
+                            return (
+                              <Chip
+                                key={s}
+                                active={slots.includes(s)}
+                                disabled={unavailable}
+                                title={unavailable ? "Already booked" : undefined}
+                                onClick={() => toggle(slots, setSlots, s)}
+                              >
+                                {s}
+                              </Chip>
+                            );
+                          })}
+                        </div>
+                        {clashes.length > 0 && (
+                          <p className="text-destructive mt-3 text-xs">
+                            Already booked: {clashes.join(", ")} — please choose another time.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {step === 5 && (
+                      <div>
+                        <h2 className="text-lg font-semibold">Review your request</h2>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                          Check everything looks right, then send your booking request.
+                        </p>
+
+                        <div className="mt-4 divide-y rounded-lg border">
+                          <PreviewRow label="Package" onEdit={() => setStep(0)}>
+                            {selectedPackage ? `${selectedPackage.name} · $${selectedPackage.price}` : "—"}
+                          </PreviewRow>
+                          <PreviewRow label="Name" onEdit={() => setStep(1)}>
+                            {name.trim() || "—"}
+                          </PreviewRow>
+                          <PreviewRow label="Phone" onEdit={() => setStep(1)}>
+                            {phone.trim() || "—"}
+                          </PreviewRow>
+                          <PreviewRow label="Days" onEdit={() => setStep(2)}>
+                            {days.length ? days.join(", ") : "Any day"}
+                          </PreviewRow>
+                          <PreviewRow label="Time of day" onEdit={() => setStep(3)}>
+                            {times.length ? times.join(", ") : "Any time"}
+                          </PreviewRow>
+                          <PreviewRow label="Lesson slots" onEdit={() => setStep(4)}>
+                            {slots.length ? slots.join(", ") : "Flexible"}
+                          </PreviewRow>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* honeypot — hidden from real users */}
+                    <input
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      aria-hidden="true"
+                      value={honeypot}
+                      onChange={(e) => setHoneypot(e.target.value)}
+                      className="absolute left-[-9999px] h-0 w-0 opacity-0"
+                    />
+
+                    <div className="flex items-center justify-between border-t pt-6">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={goBack}
+                        disabled={step === 0}
+                      >
+                        <ChevronLeft className="size-4" /> Back
+                      </Button>
+
+                      {step === STEPS.length - 1 ? (
+                        <Button type="submit" size="lg" disabled={submitting || clashes.length > 0}>
+                          {submitting ? "Sending…" : "Confirm & send request"}
+                        </Button>
+                      ) : (
+                        <Button type="submit" disabled={!stepValid[step]}>
+                          Next <ChevronRight className="size-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
             )}
           </div>
 
