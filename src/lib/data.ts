@@ -563,11 +563,15 @@ function writeRemote<T>(key: RemoteKey, value: T[]) {
 }
 
 function useRemoteKey<T>(key: RemoteKey): T[] {
-  return useSyncExternalStore(
-    subscribe,
-    () => readRemote<T>(key),
-    () => EMPTY_REMOTE as T[],
-  );
+  // Server snapshot reads from the same cache as the client snapshot
+  // (instead of always pretending to be empty) so that when a route loader
+  // — e.g. the homepage's fetchHomeData() — has already seeded this key
+  // before render, the very first paint shows the real data instead of a
+  // flash of empty-state fallbacks that then gets swapped out a moment
+  // later. This is safe because everything stored here is public, shared
+  // site content (photos, packages, promotions...), never anything
+  // request- or user-specific.
+  return useSyncExternalStore(subscribe, () => readRemote<T>(key), () => readRemote<T>(key));
 }
 
 function reportRemoteError(action: string, key: string, err: unknown) {
@@ -1850,11 +1854,12 @@ function useRemoteSingleton<T extends object>(key: RemoteSingletonKey, table: st
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, table]);
 
-  const value = useSyncExternalStore(
-    subscribe,
-    () => (remoteSingletonCache.get(key) as T | undefined) ?? fallback,
-    () => fallback,
-  );
+  // Same reasoning as useRemoteKey above: read the real cache on the server
+  // snapshot too (not just the fallback), so a loader that already fetched
+  // this (e.g. settings via fetchHomeData()) renders correctly on the very
+  // first paint instead of flashing default/fallback content first.
+  const snapshot = () => (remoteSingletonCache.get(key) as T | undefined) ?? fallback;
+  const value = useSyncExternalStore(subscribe, snapshot, snapshot);
 
   const save = useCallback(
     (patch: Partial<T>) => {
