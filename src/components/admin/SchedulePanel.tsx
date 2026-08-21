@@ -11,10 +11,14 @@ import {
   ChevronUp,
   Clock,
   Download,
+  FileSpreadsheet,
+  FileText,
+  ListChecks,
   MessageCircle,
   Plus,
   Trash2,
   Upload,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +26,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +57,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ChipGroup } from "@/components/site/ChipGroup";
 import { downloadSpreadsheet, parseCsv } from "@/lib/docs";
+import { printLessonsReport, type LessonReportRow } from "@/lib/receipts";
 import {
   errorMessage,
   findLessonConflict,
@@ -196,6 +210,12 @@ export function SchedulePanel({
           instructors={instructors}
           add={add}
         />
+        <LessonRecordsDialog
+          lessons={lessons}
+          students={students}
+          instructors={instructors}
+          settings={settings}
+        />
         <Button
           variant="outline"
           onClick={() =>
@@ -277,6 +297,260 @@ export function SchedulePanel({
         })}
       </div>
     </div>
+  );
+}
+
+/* --------------------------- lesson records dialog --------------------------- */
+
+const LESSON_RECORD_STATUS_FILTERS: { value: LessonStatus | "all"; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  ...LESSON_STATUSES,
+];
+
+const STATUS_BADGE_CLASS: Record<LessonStatus, string> = {
+  scheduled: "bg-blue-100 text-blue-700 border-blue-200",
+  completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  cancelled: "bg-red-100 text-red-700 border-red-200",
+  "no-show": "bg-amber-100 text-amber-700 border-amber-200",
+};
+
+/**
+ * Staff-facing view of every lesson ever scheduled — for one student or the
+ * whole school — with the same records viewable on screen, or exported as a
+ * spreadsheet or a printable PDF report.
+ */
+function LessonRecordsDialog({
+  lessons,
+  students,
+  instructors,
+  settings,
+}: {
+  lessons: Lesson[];
+  students: Student[];
+  instructors: Instructor[];
+  settings: SiteSettings;
+}) {
+  const [open, setOpen] = useState(false);
+  const [studentId, setStudentId] = useState("");
+  const [statusFilter, setStatusFilter] = useState<LessonStatus | "all">("all");
+
+  const sortedStudents = useMemo(
+    () => [...students].sort((a, b) => a.name.localeCompare(b.name)),
+    [students],
+  );
+
+  const studentName = (id: string) => students.find((s) => s.id === id)?.name ?? "Unknown student";
+  const instructorName = (id: string) => instructors.find((i) => i.id === id)?.name ?? "Unassigned";
+  const selectedStudent = students.find((s) => s.id === studentId);
+
+  const filtered = useMemo(
+    () =>
+      lessons
+        .filter((l) => (studentId ? l.studentId === studentId : true))
+        .filter((l) => (statusFilter === "all" ? true : l.status === statusFilter))
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+    [lessons, studentId, statusFilter],
+  );
+
+  const counts = useMemo(() => {
+    const c = { scheduled: 0, completed: 0, cancelled: 0, "no-show": 0 } as Record<
+      LessonStatus,
+      number
+    >;
+    filtered.forEach((l) => c[l.status]++);
+    return c;
+  }, [filtered]);
+
+  const scopeTitle = selectedStudent ? `Lesson Records — ${selectedStudent.name}` : "Lesson Records — All Students";
+  const scopeSubtitle = `${filtered.length} lesson${filtered.length === 1 ? "" : "s"}${
+    statusFilter === "all" ? "" : ` · ${LESSON_STATUSES.find((s) => s.value === statusFilter)?.label}`
+  } · generated ${new Date().toLocaleDateString()}`;
+
+  function reportRows(): LessonReportRow[] {
+    return filtered.map((l) => ({
+      date: new Date(l.startsAt).toLocaleDateString(),
+      time: fmtTime(l.startsAt),
+      student: studentName(l.studentId),
+      instructor: instructorName(l.instructorId),
+      type: l.lessonType,
+      duration: `${l.minutes}m`,
+      status: l.status,
+      notes: l.notes,
+    }));
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <ListChecks className="size-4" /> Lesson records
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Lesson records</DialogTitle>
+          <DialogDescription>
+            View every scheduled lesson for one student, or the whole school — then export the
+            view as a spreadsheet or a printable PDF report.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid min-w-[200px] flex-1 gap-2">
+            <Label>Student</Label>
+            <select
+              className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+              value={studentId}
+              onChange={(e) => setStudentId(e.target.value)}
+            >
+              <option value="">All students</option>
+              {sortedStudents.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid min-w-[160px] gap-2">
+            <Label>Status</Label>
+            <select
+              className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as LessonStatus | "all")}
+            >
+              {LESSON_RECORD_STATUS_FILTERS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="bg-secondary/50 rounded-lg border p-3">
+            <p className="text-muted-foreground text-[0.65rem] font-semibold tracking-wide uppercase">
+              Total
+            </p>
+            <p className="text-xl font-extrabold">{filtered.length}</p>
+          </div>
+          {LESSON_STATUSES.map((s) => (
+            <div key={s.value} className="bg-secondary/50 rounded-lg border p-3">
+              <p className="text-muted-foreground text-[0.65rem] font-semibold tracking-wide uppercase">
+                {s.label}
+              </p>
+              <p className="text-xl font-extrabold">{counts[s.value]}</p>
+            </div>
+          ))}
+        </div>
+
+        <ScrollArea className="h-72 rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Time</TableHead>
+                {!selectedStudent && <TableHead>Student</TableHead>}
+                <TableHead>Instructor</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={selectedStudent ? 6 : 7}
+                    className="text-muted-foreground py-8 text-center text-sm"
+                  >
+                    No lessons match this view yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((l) => (
+                  <TableRow key={l.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {new Date(l.startsAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{fmtTime(l.startsAt)}</TableCell>
+                    {!selectedStudent && (
+                      <TableCell className="max-w-[160px] truncate">
+                        {studentName(l.studentId)}
+                      </TableCell>
+                    )}
+                    <TableCell className="max-w-[140px] truncate">
+                      {instructorName(l.instructorId)}
+                    </TableCell>
+                    <TableCell className="capitalize">{l.lessonType}</TableCell>
+                    <TableCell>{l.minutes}m</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn("font-medium", STATUS_BADGE_CLASS[l.status])}>
+                        {LESSON_STATUSES.find((s) => s.value === l.status)?.label}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </ScrollArea>
+
+        <DialogFooter className="flex-wrap gap-2 sm:justify-between">
+          <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <Users className="size-3.5" />
+            {selectedStudent ? selectedStudent.name : `All students (${sortedStudents.length})`}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={filtered.length === 0}
+              onClick={() =>
+                safe(
+                  () =>
+                    downloadSpreadsheet(
+                      selectedStudent ? `lessons-${selectedStudent.name}` : "lessons-all-students",
+                      reportRows().map((r) => ({
+                        Date: r.date,
+                        Time: r.time,
+                        ...(selectedStudent ? {} : { Student: r.student }),
+                        Instructor: r.instructor,
+                        Type: r.type,
+                        Duration: r.duration,
+                        Status: r.status,
+                        Notes: r.notes,
+                      })),
+                    ),
+                  "Spreadsheet downloaded",
+                )
+              }
+            >
+              <FileSpreadsheet className="size-4" /> Export Excel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={filtered.length === 0}
+              onClick={() =>
+                safe(
+                  () =>
+                    printLessonsReport(
+                      settings,
+                      { title: scopeTitle, subtitle: scopeSubtitle },
+                      reportRows(),
+                      !selectedStudent,
+                    ),
+                  "PDF report opened",
+                )
+              }
+            >
+              <FileText className="size-4" /> Export PDF
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
