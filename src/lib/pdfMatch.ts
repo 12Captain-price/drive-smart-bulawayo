@@ -11,7 +11,16 @@
 
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-/** Pulls raw text out of a PDF given as a data URL (or any URL pdfjs can fetch). */
+/**
+ * Pulls raw text out of a PDF given as a data URL (or any URL pdfjs can
+ * fetch), reconstructing line breaks from each text item's Y position.
+ *
+ * pdfjs's getTextContent() returns a flat list of text runs with no notion
+ * of "lines" — just joining their strings collapses an entire page into one
+ * line, which breaks any parsing that looks for "1." at the start of a
+ * line. Line breaks have to be inferred: a new line starts whenever an
+ * item's baseline Y (transform[5]) jumps from the previous item's.
+ */
 export async function extractPdfText(src: string): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist");
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -21,8 +30,21 @@ export async function extractPdfText(src: string): Promise<string> {
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
-    const line = content.items.map((it) => ("str" in it ? it.str : "")).join(" ");
-    pageTexts.push(line);
+    let lastY: number | null = null;
+    let line = "";
+    const lines: string[] = [];
+    for (const item of content.items) {
+      if (!("str" in item)) continue;
+      const y = item.transform[5];
+      if (lastY !== null && Math.abs(y - lastY) > 1) {
+        lines.push(line);
+        line = "";
+      }
+      line += line && !line.endsWith(" ") && !item.str.startsWith(" ") ? ` ${item.str}` : item.str;
+      lastY = y;
+    }
+    if (line) lines.push(line);
+    pageTexts.push(lines.join("\n"));
   }
   return pageTexts.join("\n");
 }
@@ -59,12 +81,46 @@ function normalize(s: string): string {
     .trim();
 }
 
+/**
+ * Pulls a short "designator" (an MCQ letter, a number, a short word like
+ * "true") out of a longer answer-key line that mixes the answer in with
+ * explanation text — e.g. "B — the vehicle on the right has right of way"
+ * or "A flashing amber light... Answer: B". Answer keys routinely look like
+ * this, and comparing the *whole* sentence against a student's one-letter
+ * answer would almost never match on word overlap alone.
+ *
+ * Two patterns, in priority order: an explicit "answer:"/"ans:" marker
+ * anywhere in the text (most reliable — it's unambiguous), or a short token
+ * at the very start of the line immediately followed by punctuation like
+ * "—"/"-"/":"/")" (e.g. "B — ..."). A leading word NOT followed by that
+ * punctuation (e.g. "A flashing amber light...") is deliberately not
+ * treated as a designator, since that's just the sentence's first word.
+ */
+function extractDesignator(s: string): string | null {
+  const trimmed = s.trim();
+  const explicit = trimmed.match(/\b(?:answer|ans)\s*[:-]?\s*([A-Za-z0-9]{1,4})\b/i);
+  if (explicit) return explicit[1];
+  const leading = trimmed.match(/^([A-Za-z0-9]{1,4})\s*[-:)\u2014\u2013]\s*/);
+  if (leading) return leading[1];
+  return null;
+}
+
 /** Cheap token-overlap similarity, 0..1 — good enough to flag "probably the same answer". */
 function similarity(a: string, b: string): number {
   const na = normalize(a);
   const nb = normalize(b);
   if (!na || !nb) return 0;
   if (na === nb) return 1;
+
+  // If one side is short (a bare MCQ letter/number/short word), try
+  // matching it against a designator pulled out of the other side first —
+  // this is what makes matching work against real, noisy answer keys.
+  const [short, long] = na.length <= nb.length ? [a, b] : [b, a];
+  if (normalize(short).length <= 4) {
+    const designator = extractDesignator(long);
+    if (designator && normalize(designator) === normalize(short)) return 1;
+  }
+
   const ta = new Set(na.split(" "));
   const tb = new Set(nb.split(" "));
   let overlap = 0;
