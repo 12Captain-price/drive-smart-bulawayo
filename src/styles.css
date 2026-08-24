@@ -125,6 +125,24 @@
   --sidebar-ring: oklch(0.7 0.14 258);
 }
 
+/* Scoped dark-navy panel used for the homepage hero (and anywhere else that
+ * wants a deliberately dark "billboard" moment) without flipping the whole
+ * site into dark mode. Any descendant using the normal bg-background /
+ * text-foreground / text-muted-foreground / border-border / bg-secondary
+ * utilities picks these up automatically. The primary button becomes the
+ * signal-red accent here so the main CTA still pops against navy. */
+.hero-dark {
+  --background: oklch(0.2 0.045 262);
+  --foreground: oklch(0.98 0.004 250);
+  --muted-foreground: oklch(0.75 0.03 258);
+  --secondary: oklch(0.28 0.05 262);
+  --secondary-foreground: oklch(0.98 0.004 250);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 18%);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-foreground);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

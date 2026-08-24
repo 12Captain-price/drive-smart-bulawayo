@@ -207,33 +207,24 @@ export function HeroCarousel({
   const go = (dir: 1 | -1) => setIndex((i) => (i + dir + slides.length) % slides.length);
 
   return (
-    <div className="bg-secondary/40 relative overflow-hidden">
-      {/* Gradient wash + soft glow — gives the panel some depth instead of
-         a single flat fill. */}
+    <div className="hero-dark bg-background relative overflow-hidden">
+      {/* Dashed lane-marking run through the hero itself as the visual
+         spine between the headline and the photo — the same road motif
+         used in LaneDivider / HowItWorks, not confined to a section
+         further down the page. */}
       <div
         aria-hidden="true"
-        className="from-primary/25 via-secondary/40 to-background absolute inset-0 bg-gradient-to-br"
-      />
-      <div
-        aria-hidden="true"
-        className="bg-accent/20 absolute top-1/2 -left-32 h-[28rem] w-[28rem] -translate-y-1/2 rounded-full blur-3xl"
-      />
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 opacity-[0.5] [background-image:radial-gradient(currentColor_1px,transparent_1px)] [background-size:22px_22px] text-foreground/10"
+        className="border-accent/35 absolute inset-y-16 left-1/2 hidden w-0 -translate-x-1/2 border-l-2 border-dashed lg:block"
       />
       <div className="relative mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-14 sm:py-20 lg:grid-cols-2 lg:gap-16">
         {/* left: headline / CTA content, supplied by the page */}
         <div className="relative z-10">{children}</div>
 
-        {/* right: photo carousel card */}
+        {/* right: photo carousel card, framed like a windscreen/mirror
+           rather than a generic rounded product-shot card */}
         <div className="relative mx-auto w-full max-w-md lg:max-w-none">
           <div
-            aria-hidden="true"
-            className="bg-accent/15 absolute -top-6 -right-6 h-40 w-40 rounded-full blur-2xl sm:h-56 sm:w-56"
-          />
-          <div
-            className="border-border/60 relative aspect-[4/5] w-full overflow-hidden rounded-3xl border shadow-xl sm:aspect-[3/4]"
+            className="border-accent/40 ring-border relative aspect-[4/5] w-full overflow-hidden rounded-3xl border-2 shadow-xl ring-1 ring-offset-4 ring-offset-background sm:aspect-[3/4]"
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
             onTouchStart={(e) => setTouchX(e.touches[0].clientX)}
@@ -270,6 +261,8 @@ export function HeroCarousel({
             )}
 
             {badge && <div className="absolute top-3 right-3 z-20">{badge}</div>}
+
+            <HeroReviewCard />
           </div>
 
           {slides.length > 1 && (
@@ -278,14 +271,14 @@ export function HeroCarousel({
                 <button
                   aria-label="Previous photo"
                   onClick={() => go(-1)}
-                  className="border-border bg-background hover:bg-secondary inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                  className="border-border bg-secondary text-foreground hover:bg-secondary/70 inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
                 >
                   <ChevronLeft className="size-3.5" /> Prev
                 </button>
                 <button
                   aria-label="Next photo"
                   onClick={() => go(1)}
-                  className="border-border bg-background hover:bg-secondary inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                  className="border-border bg-secondary text-foreground hover:bg-secondary/70 inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
                 >
                   Next <ChevronRight className="size-3.5" />
                 </button>
@@ -297,6 +290,39 @@ export function HeroCarousel({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A small review chip pinned to the hero photo card, cycling through
+ *  published testimonials on its own timer — independent of the photo
+ *  slideshow above, so the two never jump at the same moment. */
+function HeroReviewCard() {
+  const { items } = useTestimonials();
+  const published = items.filter((t) => t.status === "published");
+  const [i, setI] = useState(0);
+
+  useEffect(() => {
+    if (published.length < 2) return;
+    const t = setInterval(() => setI((n) => (n + 1) % published.length), 4500);
+    return () => clearInterval(t);
+  }, [published.length]);
+
+  if (!published.length) return null;
+  const review = published[i % published.length];
+
+  return (
+    <div className="bg-background/95 border-border/60 absolute right-3 bottom-3 z-20 max-w-[12rem] rounded-xl border p-3 shadow-lg backdrop-blur-sm sm:max-w-[14rem]">
+      <StarRating value={review.rating} size={12} />
+      <p
+        key={review.id}
+        className="text-foreground motion-safe:animate-in motion-safe:fade-in mt-1.5 line-clamp-2 text-xs leading-snug duration-500"
+      >
+        “{review.comment}”
+      </p>
+      <p className="text-muted-foreground mt-1.5 truncate font-mono text-[10px] font-bold tracking-wide uppercase">
+        {review.name}
+      </p>
     </div>
   );
 }
@@ -530,41 +556,49 @@ export function PackageCard({
   return (
     <Card
       className={cn(
-        "flex h-full flex-col transition-[transform,box-shadow] duration-300 will-change-transform",
-        "hover:-translate-y-1 hover:rotate-[-0.5deg] hover:shadow-lg",
-        popular && "border-primary ring-primary/20 relative ring-2",
+        "relative flex h-full flex-col overflow-hidden rounded-3xl transition-[transform,box-shadow] duration-300 will-change-transform",
+        "hover:-translate-y-1.5 hover:shadow-lg",
+        popular
+          ? "border-primary/60 from-primary/[0.07] to-transparent shadow-[0_20px_60px_-20px_var(--primary)]/40 relative bg-gradient-to-b"
+          : "hover:border-primary/30",
       )}
     >
       {popular && (
-        <span className="bg-primary text-primary-foreground absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-semibold shadow-sm">
-          Most popular
+        <span className="from-primary to-accent text-primary-foreground absolute top-5 right-5 inline-flex items-center gap-1 rounded-full bg-gradient-to-r px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase shadow-sm">
+          <Star size={10} className="fill-current" /> Most popular
         </span>
       )}
       <CardContent className="flex flex-1 flex-col pt-6">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="text-lg font-semibold">{pkg.name}</h3>
+        <div className="flex items-start justify-between gap-3 pr-2">
+          <h3 className="text-lg font-semibold tracking-tight">{pkg.name}</h3>
           <span className="label-mono bg-secondary rounded-md px-2 py-1">{pkg.lessons} lessons</span>
         </div>
-        <div className="mt-4 flex items-baseline gap-2">
+        <div className="mt-5 flex items-baseline gap-2">
           {promo?.promoPrice != null && (
             <span className="text-muted-foreground font-mono text-lg line-through">${pkg.price}</span>
           )}
-          <span className="text-primary font-mono text-3xl font-bold">${effectivePrice}</span>
+          <span className="text-primary font-mono text-4xl font-bold tracking-tight">${effectivePrice}</span>
         </div>
         {perLesson != null && (
-          <p className="text-muted-foreground mt-1 font-mono text-xs">
+          <p className="text-muted-foreground mt-1 font-mono text-xs tracking-wide uppercase">
             ≈ ${perLesson.toFixed(2)} per lesson
           </p>
         )}
         <p className="text-muted-foreground mt-3 text-sm">{pkg.description}</p>
-        <ul className="mt-4 space-y-1.5 text-sm">
+        <ul className="mt-5 flex-1 space-y-2 text-sm">
           {pkg.includes.map((i) => (
-            <li key={i} className="flex gap-2">
-              <span className="text-accent">✓</span> {i}
+            <li key={i} className="flex items-start gap-2">
+              <span className="text-accent mt-0.5">✓</span> {i}
             </li>
           ))}
         </ul>
-        <Button asChild className="mt-6 w-full">
+        <Button
+          asChild
+          className={cn(
+            "mt-6 w-full rounded-full font-semibold",
+            popular && "from-primary to-accent text-primary-foreground bg-gradient-to-r hover:brightness-110",
+          )}
+        >
           <Link to="/contact">Book this package</Link>
         </Button>
       </CardContent>

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CtaBand,
@@ -12,7 +13,7 @@ import {
   Section,
   SectionHeading,
   TestimonialsStrip,
-  TrustStrip,
+  TRUST_ICONS,
   promoForPackage,
 } from "@/components/site/blocks";
 import {
@@ -109,19 +110,9 @@ function Home() {
     ? uploadedGallery.map((p) => ({ src: p.src, caption: p.caption }))
     : placeholderGallery;
 
-  const fromPrice = packages.length ? Math.min(...packages.map((p) => p.price)) : null;
-
   return (
     <>
-      <HeroCarousel
-        badge={
-          fromPrice !== null ? (
-            <span className="border-primary bg-background text-primary inline-flex -rotate-2 items-center gap-1 rounded-md border-2 px-2 py-1 font-mono text-[10px] font-bold tracking-wide shadow-lg sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs">
-              PACKAGES FROM ${fromPrice}
-            </span>
-          ) : undefined
-        }
-      >
+      <HeroCarousel>
         <div className="relative text-center lg:text-left">
           {/* Large decorative driving scene behind the text — a winding road
              with a small car animating along it. Fills the empty space left
@@ -160,20 +151,40 @@ function Home() {
             {settings.tagline}
           </p>
           <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 mt-7 flex flex-col gap-3 duration-700 delay-300 sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
-            <Button asChild size="lg" className="w-full active:scale-95 active:shadow-inner sm:w-auto">
+            <Button
+              asChild
+              size="lg"
+              className="w-full rounded-full font-mono text-xs font-bold tracking-[0.12em] uppercase shadow-lg shadow-black/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-95 active:shadow-inner sm:w-auto sm:px-8 sm:text-[13px]"
+            >
               <Link to="/contact">Book a Lesson</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="w-full active:scale-95 active:shadow-inner sm:w-auto">
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="text-foreground w-full rounded-full border-2 font-mono text-xs font-bold tracking-[0.12em] uppercase transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 active:shadow-inner sm:w-auto sm:px-8 sm:text-[13px]"
+            >
               <a href={waLink(settings.whatsapp, settings.waGeneralTemplate)} target="_blank" rel="noreferrer">
                 WhatsApp {settings.phone}
               </a>
             </Button>
           </div>
+
+          {/* Quick trust icons live right in the hero, not buried in a
+             section further down the page. */}
+          <div className="text-muted-foreground motion-safe:animate-in motion-safe:fade-in mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium duration-700 delay-500 sm:justify-start">
+            {settings.trustStrip.map((item, i) => {
+              const Icon = TRUST_ICONS[item.icon] ?? ShieldCheck;
+              return (
+                <span key={i} className="inline-flex items-center gap-1.5">
+                  <Icon className="text-accent size-4 shrink-0" /> {item.text}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </HeroCarousel>
       <PromotionsBanner />
-
-      <TrustStrip />
 
       <HowItWorks />
       <LaneDivider />
