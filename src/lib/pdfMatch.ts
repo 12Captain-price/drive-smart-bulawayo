@@ -30,20 +30,54 @@ export async function extractPdfText(src: string): Promise<string> {
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
+
+    // First pass: group items into lines by Y position (as before), but
+    // also record how big the Y jump was going into each line.
+    const rawLines: { text: string; gapBefore: number }[] = [];
     let lastY: number | null = null;
     let line = "";
-    const lines: string[] = [];
+    let pendingGap = 0; // gap leading into the line currently being built
     for (const item of content.items) {
       if (!("str" in item)) continue;
       const y = item.transform[5];
       if (lastY !== null && Math.abs(y - lastY) > 1) {
-        lines.push(line);
+        rawLines.push({ text: line, gapBefore: pendingGap });
         line = "";
+        pendingGap = Math.abs(y - lastY);
       }
       line += line && !line.endsWith(" ") && !item.str.startsWith(" ") ? ` ${item.str}` : item.str;
       lastY = y;
     }
-    if (line) lines.push(line);
+    if (line) rawLines.push({ text: line, gapBefore: pendingGap });
+
+    // The most common line-to-line gap on the page is the "normal" single
+    // line height. A gap noticeably bigger than that marks a paragraph or
+    // section break (e.g. between the last row of a table and trailing
+    // notes below it) — insert a blank line there. Downstream parsing
+    // (parseNumberedAnswers) uses blank lines to know where an answer
+    // actually ends, instead of running on into unrelated trailing text
+    // just because there's no next numbered marker to stop it.
+    const gapCounts = new Map<number, number>();
+    for (const { gapBefore } of rawLines.slice(1)) {
+      const rounded = Math.round(gapBefore);
+      gapCounts.set(rounded, (gapCounts.get(rounded) ?? 0) + 1);
+    }
+    let typicalGap = 0;
+    let bestCount = 0;
+    for (const [gap, count] of gapCounts) {
+      if (count > bestCount) {
+        bestCount = count;
+        typicalGap = gap;
+      }
+    }
+
+    const lines: string[] = [];
+    rawLines.forEach(({ text, gapBefore }, i) => {
+      if (i > 0 && typicalGap > 0 && gapBefore > typicalGap * 1.25) {
+        lines.push("");
+      }
+      lines.push(text);
+    });
     pageTexts.push(lines.join("\n"));
   }
   return pageTexts.join("\n");
@@ -57,7 +91,11 @@ export async function extractPdfText(src: string): Promise<string> {
  * callers should treat that as "couldn't parse", not "no answers".
  */
 export function parseNumberedAnswers(text: string): Map<number, string> {
-  const markerRe = /(?:^|\n)\s*(?:Q\.?\s*)?(\d{1,3})\s*[.):-]\s*/gi;
+  // Punctuation after the number is now optional: table-style keys like
+  // "1 B The vehicle on the right" separate the number from the rest with
+  // nothing but a space. (Punctuated styles like "1.", "1)", "1 -", "Q1:"
+  // still work the same as before.)
+  const markerRe = /(?:^|\n)\s*(?:Q\.?\s*)?(\d{1,3})\s*[.):-]?\s*/gi;
   const matches = [...text.matchAll(markerRe)];
   const out = new Map<number, string>();
 
@@ -66,7 +104,13 @@ export function parseNumberedAnswers(text: string): Map<number, string> {
     const n = parseInt(m[1], 10);
     if (!Number.isFinite(n) || n <= 0 || n > 300) continue;
     const start = (m.index ?? 0) + m[0].length;
-    const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    let end = i + 1 < matches.length ? (matches[i + 1].index ?? text.length) : text.length;
+    // A blank line (inserted by extractPdfText at a paragraph/section
+    // break) marks the real end of an answer even when there's no next
+    // numbered marker to bound it — e.g. the last question in a table,
+    // followed by unrelated notes further down the page.
+    const blankLineOffset = text.slice(start, end).search(/\n[ \t]*\n/);
+    if (blankLineOffset !== -1) end = start + blankLineOffset;
     const answer = text.slice(start, end).replace(/\s+/g, " ").trim();
     if (answer) out.set(n, answer);
   }
@@ -89,19 +133,33 @@ function normalize(s: string): string {
  * this, and comparing the *whole* sentence against a student's one-letter
  * answer would almost never match on word overlap alone.
  *
- * Two patterns, in priority order: an explicit "answer:"/"ans:" marker
- * anywhere in the text (most reliable — it's unambiguous), or a short token
- * at the very start of the line immediately followed by punctuation like
- * "—"/"-"/":"/")" (e.g. "B — ..."). A leading word NOT followed by that
- * punctuation (e.g. "A flashing amber light...") is deliberately not
- * treated as a designator, since that's just the sentence's first word.
+ * Three patterns, in priority order: an explicit "answer:"/"ans:" marker
+ * anywhere in the text (most reliable — it's unambiguous); a short token at
+ * the very start followed by punctuation like "—"/"-"/":"/")" (e.g.
+ * "B — ..."); or, for punctuation-free table keys like "B The vehicle on
+ * the right", a bare leading token whose *next* word is also capitalised —
+ * a real designator is followed by a new sentence, whereas ordinary prose
+ * starting with a short word (e.g. "A flashing amber light...") continues
+ * in lowercase. A leading word matching neither pattern is left alone.
  */
 function extractDesignator(s: string): string | null {
   const trimmed = s.trim();
   const explicit = trimmed.match(/\b(?:answer|ans)\s*[:-]?\s*([A-Za-z0-9]{1,4})\b/i);
   if (explicit) return explicit[1];
-  const leading = trimmed.match(/^([A-Za-z0-9]{1,4})\s*[-:)\u2014\u2013]\s*/);
-  if (leading) return leading[1];
+  // "B — the vehicle..." / "B) ..." / "B: ..." — punctuation right after
+  // the token is an unambiguous signal on its own.
+  const punctuated = trimmed.match(/^([A-Za-z0-9]{1,4})\s*[-:)\u2014\u2013]\s*/);
+  if (punctuated) return punctuated[1];
+  // "B The vehicle on the right" — a bare token with no punctuation at all
+  // (common in table-style keys: number, space, letter, space, description).
+  // This is ambiguous with ordinary prose that happens to start with a short
+  // word like "A" (e.g. "A flashing amber light..."), so it's only treated
+  // as a designator when the next word ALSO starts a fresh sentence
+  // (capitalised) — real prose continues in lowercase, while a designator is
+  // followed by the actual answer text starting anew. Deliberately
+  // conservative: a leading word not followed by this pattern is left alone.
+  const bare = trimmed.match(/^([A-Z]{1,2}|\d{1,2})\s+(?=[A-Z])/);
+  if (bare) return bare[1];
   return null;
 }
 
