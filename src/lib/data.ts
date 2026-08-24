@@ -514,6 +514,9 @@ interface Collection<T extends { id: string }> {
   replaceAll: (items: T[]) => void;
   /** Swap an item with its neighbour (-1 up, 1 down). */
   move: (id: string, direction: -1 | 1) => void;
+  /** True until this collection's initial fetch from Supabase has settled.
+   *  Use this before treating a missing `.find()` result as "not found". */
+  isLoading: boolean;
 }
 
 /* --------------------- remote (Supabase) collection API -------------------- */
@@ -602,8 +605,28 @@ function ensureRemoteLoaded<T>(
       reportRemoteError("load", key, err);
     } finally {
       remoteFetchState.set(key, "done");
+      // The success path already re-renders subscribers via writeRemote's
+      // emit(). The error path doesn't touch the cache, so without this call
+      // nothing tells "isLoading" consumers that loading has finished —
+      // they'd stay stuck showing a loading state forever after a failed
+      // fetch.
+      emit();
     }
   })();
+}
+
+/** True while `key`'s initial fetch from Supabase hasn't finished yet.
+ *  Lets pages that look something up by id (e.g. a token) tell "still
+ *  loading" apart from "genuinely doesn't exist" — without this, a page
+ *  that does `assignments.find(...)` sees an empty array for a moment on
+ *  every load and flashes an "invalid link" notice before the real data
+ *  arrives. */
+function useRemoteLoading(key: RemoteKey): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => remoteFetchState.get(key) !== "done",
+    () => remoteFetchState.get(key) !== "done",
+  );
 }
 
 interface RemoteTableConfig<T extends { id: string }> {
@@ -632,6 +655,25 @@ interface RemoteTableConfig<T extends { id: string }> {
  */
 const remoteChannels = new Map<RemoteKey, ReturnType<typeof supabase.channel>>();
 
+/**
+ * Counts in-flight update() calls per "key:id", so the realtime UPDATE
+ * handler below can tell "an echo of a write I already applied locally" from
+ * "a genuine change from elsewhere" and skip the former.
+ *
+ * Without this, fast typing into any field bound straight to update() (e.g.
+ * a "Test name" box calling update() on every keystroke) races its own
+ * Realtime echoes: each keystroke fires an update, Postgres/Realtime don't
+ * guarantee those echoes come back in the same order they were sent, and the
+ * plain "apply whatever the last echo said" handler would snap the field
+ * back to an earlier, half-typed value mid-keystroke. While a row has
+ * pending writes outstanding, we trust our own optimistic state instead of
+ * replaying possibly-stale echoes for it.
+ */
+const pendingRemoteWrites = new Map<string, number>();
+function pendingWriteKey(key: RemoteKey, id: string) {
+  return `${key}:${id}`;
+}
+
 function ensureRealtimeSubscribed<T extends { id: string }>(
   key: RemoteKey,
   table: string,
@@ -656,6 +698,10 @@ function ensureRealtimeSubscribed<T extends { id: string }>(
           writeRemote<T>(key, [row, ...list]);
           onRemoteInsert?.(row);
         } else if (payload.eventType === "UPDATE") {
+          // Skip echoes for rows we still have an update() in flight for —
+          // see pendingRemoteWrites above. Our optimistic state is already
+          // at least as current as this echo.
+          if ((pendingRemoteWrites.get(pendingWriteKey(key, payload.new?.id)) ?? 0) > 0) return;
           const row = fromRow(payload.new);
           writeRemote<T>(
             key,
@@ -691,6 +737,7 @@ function useRemoteCollection<T extends { id: string }>(
   }, [key, table]);
 
   const items = useRemoteKey<T>(key);
+  const isLoading = useRemoteLoading(key);
 
   const add = useCallback(
     (item: Omit<T, "id"> & { id?: string }) => {
@@ -755,6 +802,8 @@ function useRemoteCollection<T extends { id: string }>(
         key,
         prev.map((i) => (i.id === id ? { ...i, ...patch } : i)),
       );
+      const pk = pendingWriteKey(key, id);
+      pendingRemoteWrites.set(pk, (pendingRemoteWrites.get(pk) ?? 0) + 1);
       (async () => {
         try {
           const { error } = await (supabase.from(table) as any).update(toRow(patch)).eq("id", id);
@@ -762,6 +811,10 @@ function useRemoteCollection<T extends { id: string }>(
         } catch (err) {
           writeRemote<T>(key, prev);
           reportRemoteError("update", key, err);
+        } finally {
+          const remaining = (pendingRemoteWrites.get(pk) ?? 1) - 1;
+          if (remaining <= 0) pendingRemoteWrites.delete(pk);
+          else pendingRemoteWrites.set(pk, remaining);
         }
       })();
     },
@@ -803,7 +856,7 @@ function useRemoteCollection<T extends { id: string }>(
     [key],
   );
 
-  return { items, add, addMany, update, remove, replaceAll, move };
+  return { items, add, addMany, update, remove, replaceAll, move, isLoading };
 }
 
 /**
@@ -1497,6 +1550,34 @@ export async function uploadPhotoToStorage(file: File): Promise<string> {
   });
   if (error) throw error;
   const { data } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+const TEST_FILES_BUCKET = "test-files";
+
+/**
+ * Uploads a File to the "test-files" Storage bucket and returns its public
+ * URL. Use this (not fileToDataUrl) for test papers and answer keys.
+ *
+ * Test papers used to be saved with fileToDataUrl — the whole file base64-
+ * encoded straight into the `tests.paper` text column. A phone photo easily
+ * base64s out to several MB, and at that size the row round-trips
+ * unreliably: PostgREST/Realtime have payload limits well under that, so a
+ * big paper can silently fail to save in full, or fail to come back intact
+ * on read — which is exactly the "test paper" image showing as a broken
+ * image on the student's test page. Storing only a short public URL in the
+ * column (same pattern as uploadPhotoToStorage for the photos table) avoids
+ * that entirely, same as it already does for gallery photos.
+ */
+export async function uploadTestFileToStorage(file: File): Promise<string> {
+  const ext = file.name.includes(".") ? file.name.split(".").pop() : "bin";
+  const path = `${uid()}.${ext}`;
+  const { error } = await supabase.storage.from(TEST_FILES_BUCKET).upload(path, file, {
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from(TEST_FILES_BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
 
@@ -2368,6 +2449,21 @@ export function testIsReady(t: Test) {
   if (t.type === "mcq")
     return t.questions.length > 0 && t.questions.every((q) => q.options.length >= 2);
   return Boolean(t.paper) && Boolean(t.answerKey || (t.answerKeyText ?? "").trim());
+}
+
+/** Explains WHY a test isn't ready yet, or null when it is. Same rule as
+ *  testIsReady — kept in sync with it — but spells out what's missing
+ *  instead of a flat "not finished" so it's obvious what to fix. */
+export function testReadyReason(t: Test): string | null {
+  if (t.type === "mcq") {
+    if (t.questions.length === 0) return "Add at least one question";
+    const badQuestion = t.questions.find((q) => q.options.length < 2);
+    if (badQuestion) return "Every question needs at least 2 options";
+    return null;
+  }
+  if (!t.paper) return "Upload a test paper";
+  if (!t.answerKey && !(t.answerKeyText ?? "").trim()) return "Add an answer key — upload a PDF or type the answers";
+  return null;
 }
 
 /** Total minutes allowed for an assignment, including any extension. */

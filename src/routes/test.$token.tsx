@@ -85,10 +85,11 @@ function Notice({ title, body }: { title: string; body: string }) {
 
 function TakeTest() {
   const { token } = Route.useParams();
-  const { items: assignments, update: updateAssignment } = useAssignments();
-  const { items: tests } = useTests();
-  const { items: students } = useStudents();
+  const { items: assignments, update: updateAssignment, isLoading: assignmentsLoading } = useAssignments();
+  const { items: tests, isLoading: testsLoading } = useTests();
+  const { items: students, isLoading: studentsLoading } = useStudents();
   const { add: addSubmission } = useSubmissions();
+  const dataLoading = assignmentsLoading || testsLoading || studentsLoading;
 
   const assignment = assignments.find((a) => a.token === token);
   const test = tests.find((t) => t.id === assignment?.testId);
@@ -262,8 +263,24 @@ function TakeTest() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [msLeft, started, finished]);
 
-  if (!assignment || !test)
+  if (!assignment || !test) {
+    // Data hasn't finished loading yet — this is NOT the same as "not
+    // found". Without this check, every visit briefly flashes the invalid
+    // link screen while assignments/tests/students are still fetching.
+    if (dataLoading) {
+      return (
+        <Section className="max-w-md">
+          <Card className="shadow-lg">
+            <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+              <Loader2 className="text-accent size-10 animate-spin" />
+              <p className="text-muted-foreground text-sm">Loading your test…</p>
+            </CardContent>
+          </Card>
+        </Section>
+      );
+    }
     return <Notice title="This link isn't valid" body="Please ask the school to send you a new test link." />;
+  }
 
   if (finished || assignment.status === "submitted")
     return (
@@ -443,7 +460,14 @@ function TakeTest() {
   const q = questions[index];
   const unansweredCount = questions.length - answeredCount;
   const writtenIncomplete = test.type === "pdf" && !typed.trim() && !photo;
-  const isPdfPaper = test.paper?.startsWith("data:application/pdf");
+  // Papers are now Storage public URLs (see uploadTestFileToStorage), not
+  // data URLs, so we can't sniff the mime type from the string prefix
+  // anymore — go by the uploaded file's extension instead. Data-URL papers
+  // uploaded before that change still work via the old prefix check.
+  const isPdfPaper =
+    test.paper?.startsWith("data:application/pdf") ||
+    /\.pdf($|\?)/i.test(test.paper ?? "") ||
+    /\.pdf$/i.test(test.paperName ?? "");
 
   const confirmMessage =
     test.type === "mcq"

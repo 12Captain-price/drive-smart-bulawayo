@@ -9,6 +9,7 @@ import {
   Copy,
   FileText,
   ListChecks,
+  Loader2,
   Plus,
   Search,
   Send,
@@ -39,11 +40,12 @@ import { ChipGroup } from "@/components/site/ChipGroup";
 import {
   ASSIGNMENT_STATUSES,
   errorMessage,
-  fileToDataUrl,
+  uploadTestFileToStorage,
   gradeMcq,
   makeAccessCode,
   makeToken,
   testIsReady,
+  testReadyReason,
   uid,
   useAssignments,
   useSettings,
@@ -374,8 +376,10 @@ function TestEditor({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [uploading, setUploading] = useState<"paper" | "answerKey" | null>(null);
   const setQuestions = (questions: Question[]) => update(test.id, { questions });
   const ready = testIsReady(test);
+  const readyReason = testReadyReason(test);
 
   function duplicate() {
     safe(async () => {
@@ -397,12 +401,22 @@ function TestEditor({
 
   async function upload(file: File | undefined, field: "paper" | "answerKey") {
     if (!file) return;
+    setUploading(field);
     try {
-      const url = await fileToDataUrl(file);
+      const url = await uploadTestFileToStorage(file);
       update(test.id, { [field]: url, [`${field}Name`]: file.name } as Partial<Test>);
       toast.success("File added");
-    } catch {
-      toast.error("Could not read that file");
+    } catch (err) {
+      // Surface the real reason (e.g. "Bucket not found" if the test-files
+      // Storage bucket hasn't been created yet) instead of a generic
+      // message — this used to fail silently-ish (a toast that's easy to
+      // miss) leaving the field looking like nothing was uploaded, with the
+      // test just staying "Not finished yet" with no clue why.
+      toast.error(`Could not upload that file — ${errorMessage(err, "check your connection and try again.")}`, {
+        duration: Infinity,
+      });
+    } finally {
+      setUploading(null);
     }
   }
 
@@ -439,7 +453,7 @@ function TestEditor({
             )}
             <span aria-hidden>·</span>
             <span className={cn("font-medium", ready ? "text-success" : "text-muted-foreground")}>
-              {ready ? "Ready to send out" : "Not finished yet"}
+              {ready ? "Ready to send out" : readyReason ?? "Not finished yet"}
             </span>
           </span>
         </span>
@@ -601,14 +615,34 @@ function TestEditor({
               <Input
                 type="file"
                 accept="application/pdf,image/*"
+                disabled={uploading !== null}
                 onChange={(e) => upload(e.target.files?.[0], "paper")}
               />
-              {test.paperName && <p className="text-muted-foreground text-xs">Added: {test.paperName}</p>}
+              {uploading === "paper" && (
+                <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                  <Loader2 className="size-3 animate-spin" /> Uploading…
+                </p>
+              )}
+              {uploading !== "paper" && test.paperName && (
+                <p className="text-muted-foreground text-xs">Added: {test.paperName}</p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label>Answer key (PDF)</Label>
-              <Input type="file" accept="application/pdf" onChange={(e) => upload(e.target.files?.[0], "answerKey")} />
-              {test.answerKeyName && <p className="text-muted-foreground text-xs">Added: {test.answerKeyName}</p>}
+              <Input
+                type="file"
+                accept="application/pdf"
+                disabled={uploading !== null}
+                onChange={(e) => upload(e.target.files?.[0], "answerKey")}
+              />
+              {uploading === "answerKey" && (
+                <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                  <Loader2 className="size-3 animate-spin" /> Uploading…
+                </p>
+              )}
+              {uploading !== "answerKey" && test.answerKeyName && (
+                <p className="text-muted-foreground text-xs">Added: {test.answerKeyName}</p>
+              )}
             </div>
             <div className="grid gap-2 sm:col-span-2">
               <Label>Or type the answers (staff only — never shown to students)</Label>

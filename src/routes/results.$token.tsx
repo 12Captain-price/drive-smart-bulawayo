@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, Award } from "lucide-react";
+import { AlertCircle, Award, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/site/blocks";
@@ -22,8 +22,8 @@ export const Route = createFileRoute("/results/$token")({
 
 function Results() {
   const { token } = Route.useParams();
-  const { items: assignments } = useAssignments();
-  const { items: submissions } = useSubmissions();
+  const { items: assignments, isLoading: assignmentsLoading } = useAssignments();
+  const { items: submissions, isLoading: submissionsLoading } = useSubmissions();
   const { items: tests } = useTests();
   const { items: students } = useStudents();
   const { settings } = useSettings();
@@ -33,7 +33,21 @@ function Results() {
   const test = tests.find((t) => t.id === assignment?.testId);
   const student = students.find((s) => s.id === assignment?.studentId);
 
-  if (!assignment || !submission)
+  if (!assignment || !submission) {
+    // Same fix as the test-taking page: don't show "not ready" while
+    // assignments/submissions are still loading from Supabase.
+    if (assignmentsLoading || submissionsLoading) {
+      return (
+        <Section className="max-w-md">
+          <Card className="shadow-lg">
+            <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+              <Loader2 className="text-accent size-10 animate-spin" />
+              <p className="text-muted-foreground text-sm">Loading your result…</p>
+            </CardContent>
+          </Card>
+        </Section>
+      );
+    }
     return (
       <Section className="max-w-md">
         <Card className="shadow-lg">
@@ -47,6 +61,7 @@ function Results() {
         </Card>
       </Section>
     );
+  }
 
   const score =
     submission.mark ??
