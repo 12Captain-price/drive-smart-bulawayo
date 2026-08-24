@@ -13,9 +13,12 @@ import {
   Plus,
   Search,
   Send,
+  Sparkles,
   Trash2,
   Users,
 } from "lucide-react";
+import { PdfPaper } from "@/components/site/PdfPaper";
+import { extractPdfText, matchPdfAnswers, type PdfMatchResult } from "@/lib/pdfMatch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1200,11 +1203,51 @@ function SubmissionCard({
   const [open, setOpen] = useState(!sub.mark);
   const auto = test && test.type === "mcq" ? gradeMcq(test, sub.answers) : null;
   const autoReason = autoSubmitReason(assignment);
+  // Papers/keys are Storage URLs or old data URLs, not guaranteed to be
+  // PDFs — sniff by prefix/extension the same way the student-facing test
+  // page does, and fall back to a plain <img> otherwise.
+  const isPdfFile = (src: string | undefined, name: string | undefined) =>
+    Boolean(src) &&
+    (src!.startsWith("data:application/pdf") || /\.pdf($|\?)/i.test(src!) || /\.pdf$/i.test(name ?? ""));
+  const paperIsPdf = isPdfFile(test?.paper, test?.paperName);
+  const keyIsPdf = isPdfFile(test?.answerKey, test?.answerKeyName);
   const flagGroups = useMemo(() => {
     const m = new Map<string, number>();
     for (const f of sub.flags) m.set(f.type, (m.get(f.type) ?? 0) + 1);
     return Array.from(m.entries());
   }, [sub.flags]);
+
+  // Best-effort auto-match for "pdf" tests: pulls text out of the uploaded
+  // answer key and compares it to the student's typed answers. Only ever
+  // shown as a suggestion the marker triggers and reviews — see pdfMatch.ts
+  // for why this can't be a real silent auto-grade.
+  const [pdfMatchState, setPdfMatchState] = useState<"idle" | "loading" | "error" | "done">("idle");
+  const [pdfMatch, setPdfMatch] = useState<PdfMatchResult | null>(null);
+  const canAutoMatch = test?.type === "pdf" && Boolean(test.answerKeyText?.trim() || (test.answerKey && keyIsPdf)) && Boolean(sub.typed);
+
+  async function runAutoMatch() {
+    if (!test || !sub.typed) return;
+    setPdfMatchState("loading");
+    try {
+      const keyText = test.answerKeyText?.trim() || (test.answerKey && keyIsPdf ? await extractPdfText(test.answerKey) : "");
+      if (!keyText.trim()) throw new Error("No readable text in the answer key");
+      const result = matchPdfAnswers(keyText, sub.typed);
+      if (!result) {
+        toast.error("Couldn't find numbered answers (1. 2. 3. …) in the answer key to match against");
+        setPdfMatchState("error");
+        return;
+      }
+      setPdfMatch(result);
+      setPdfMatchState("done");
+    } catch (err) {
+      console.error("Auto-match failed:", err);
+      toast.error(
+        errorMessage(err, "Couldn't read the answer key — it may be a scanned image rather than text"),
+        { duration: 6000 },
+      );
+      setPdfMatchState("error");
+    }
+  }
   const resultsLink = assignment?.resultsToken ? `${origin()}/results/${assignment.resultsToken}` : "";
   const message = [
     `Hi ${student?.name ?? ""}, your ${test?.title ?? "test"} result is ready.`,
@@ -1304,25 +1347,123 @@ function SubmissionCard({
             </details>
           )}
 
-          {sub.typed && (
-            <div className="grid gap-1 text-sm">
-              <Label>Their typed answers</Label>
-              <p className="bg-secondary/50 rounded-lg border p-3 whitespace-pre-wrap">{sub.typed}</p>
+          {test?.type === "pdf" && (sub.typed || sub.photo || test.paper) && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1">
+                <Label>Test paper</Label>
+                {test.paper ? (
+                  <div className="bg-secondary/30 h-96 overflow-y-auto rounded-lg border">
+                    {paperIsPdf ? (
+                      <PdfPaper src={test.paper} className="size-full" />
+                    ) : (
+                      <img src={test.paper} alt="Test paper" className="size-full object-contain" />
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground rounded-lg border p-3 text-sm">No test paper was uploaded.</p>
+                )}
+              </div>
+              <div className="grid gap-1">
+                <Label>{sub.photo ? "Photo of their written answers" : "Their typed answers"}</Label>
+                {sub.photo ? (
+                  <div className="h-96 overflow-y-auto rounded-lg border">
+                    <img src={sub.photo} alt="Student answer sheet" className="w-full object-contain" />
+                  </div>
+                ) : (
+                  <p className="bg-secondary/50 h-96 overflow-y-auto rounded-lg border p-3 text-sm whitespace-pre-wrap">
+                    {sub.typed}
+                  </p>
+                )}
+              </div>
             </div>
           )}
-          {sub.photo && (
-            <div className="grid gap-1">
-              <Label>Photo of their written answers</Label>
-              <img src={sub.photo} alt="Student answer sheet" className="max-h-96 rounded-lg border object-contain" />
+
+          {test?.type === "pdf" && (test.answerKey || test.answerKeyText) && (
+            <details className="text-sm">
+              <summary className="cursor-pointer font-medium">Answer key</summary>
+              <div className="mt-2 space-y-2">
+                {test.answerKey && (
+                  <>
+                    <div className="bg-secondary/30 h-72 overflow-y-auto rounded-lg border">
+                      {keyIsPdf ? (
+                        <PdfPaper src={test.answerKey} className="size-full" />
+                      ) : (
+                        <img src={test.answerKey} alt="Answer key" className="size-full object-contain" />
+                      )}
+                    </div>
+                    <a href={test.answerKey} download={test.answerKeyName} className="text-primary text-xs underline">
+                      <FileText className="mr-1 inline size-3.5" /> Download original
+                    </a>
+                  </>
+                )}
+                {test.answerKeyText && (
+                  <p className="text-muted-foreground rounded-lg border p-3 text-xs whitespace-pre-wrap">
+                    {test.answerKeyText}
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
+
+          {canAutoMatch && (
+            <div className="bg-secondary/40 grid gap-2 rounded-lg border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pdfMatchState === "loading"}
+                  onClick={runAutoMatch}
+                >
+                  {pdfMatchState === "loading" ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  {pdfMatchState === "done" ? "Re-check against answer key" : "Auto-match against answer key"}
+                </Button>
+                <span className="text-muted-foreground text-xs">
+                  A suggestion only — read the flagged answers before trusting it.
+                </span>
+              </div>
+
+              {pdfMatchState === "done" && pdfMatch && (
+                <>
+                  <p className="text-sm">
+                    Suggested score:{" "}
+                    <span className="font-mono font-bold">
+                      {pdfMatch.score} / {pdfMatch.total}
+                    </span>{" "}
+                    ({Math.round((pdfMatch.score / Math.max(1, pdfMatch.total)) * 100)}%)
+                  </p>
+                  <details className="text-sm">
+                    <summary className="cursor-pointer">See the question-by-question match</summary>
+                    <ol className="mt-2 space-y-1 pl-5">
+                      {pdfMatch.rows.map((r) => (
+                        <li
+                          key={r.n}
+                          className={r.match ? "text-success" : r.close ? "text-accent" : "text-destructive"}
+                        >
+                          Q{r.n}: key says "{r.key}" — student wrote "{r.given ?? "(no answer found)"}"
+                          {r.match ? " ✓" : r.close ? " (close — check by eye)" : " ✗"}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-fit"
+                    onClick={() =>
+                      update(sub.id, { mark: `${pdfMatch.score}/${pdfMatch.total}` })
+                    }
+                  >
+                    Use as final result
+                  </Button>
+                </>
+              )}
             </div>
-          )}
-          {test?.answerKey && (
-            <a href={test.answerKey} download={test.answerKeyName} className="text-primary text-sm underline">
-              <FileText className="mr-1 inline size-4" /> Open the answer key
-            </a>
-          )}
-          {test?.answerKeyText && (
-            <p className="text-muted-foreground text-xs whitespace-pre-wrap">Answer key: {test.answerKeyText}</p>
           )}
 
           {autoReason && (
