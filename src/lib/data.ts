@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { supabase } from "./supabase";
+import type { PdfMatchRow } from "./pdfMatch";
 
 /** True when a key has patch[key] explicitly set (including to undefined),
  *  as opposed to the key being absent from the patch entirely. Needed so a
@@ -2218,6 +2219,12 @@ export interface Submission {
   autoTotal?: number;
   mark?: string;
   feedback?: string;
+  /** Question-by-question breakdown from the "pdf" test auto-match, saved
+   *  here only when the marker explicitly chooses to share it — presence of
+   *  this field is what makes the student's results page show it. Reuses
+   *  the shape produced by matchPdfAnswers so there's one source of truth
+   *  for "what does a match row look like". */
+  answerBreakdown?: PdfMatchRow[];
   submittedAt: string;
 }
 
@@ -2322,6 +2329,7 @@ function submissionFromRow(row: any): Submission {
     autoTotal: row.auto_total ?? undefined,
     mark: row.mark ?? undefined,
     feedback: row.feedback ?? undefined,
+    answerBreakdown: row.answer_breakdown ?? undefined,
     submittedAt: row.submitted_at,
   };
 }
@@ -2340,6 +2348,7 @@ function submissionToRow(item: Partial<Submission>): Record<string, unknown> {
   if (has(item, "autoTotal")) row.auto_total = item.autoTotal ?? null;
   if (has(item, "mark")) row.mark = item.mark || null;
   if (has(item, "feedback")) row.feedback = item.feedback || null;
+  if (has(item, "answerBreakdown")) row.answer_breakdown = item.answerBreakdown ?? null;
   if (has(item, "submittedAt")) row.submitted_at = item.submittedAt;
   return row;
 }

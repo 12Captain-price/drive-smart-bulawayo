@@ -1306,7 +1306,9 @@ function SubmissionCard({
     `Hi ${student?.name ?? ""}, your ${test?.title ?? "test"} result is ready.`,
     sub.mark ? `Result: ${sub.mark}` : "",
     sub.feedback ? `Note: ${sub.feedback}` : "",
-    resultsLink ? `See it here: ${resultsLink}` : "",
+    resultsLink
+      ? `See it here${sub.answerBreakdown ? " (includes the correct answers)" : ""}: ${resultsLink}`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -1484,6 +1486,27 @@ function SubmissionCard({
                 </span>
               </div>
 
+              {/* Independent of pdfMatchState so this still shows after a page
+                  reload, when the "sharing" choice is already saved on the
+                  submission but the auto-match hasn't been re-run yet. */}
+              {sub.answerBreakdown && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-success text-xs font-medium">
+                    ✓ Correct answers are visible on the student's results page.
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      safe(() => update(sub.id, { answerBreakdown: undefined }), "Stopped sharing answers")
+                    }
+                  >
+                    Stop sharing answers
+                  </Button>
+                </div>
+              )}
+
               {pdfMatchState === "done" && pdfMatch && (
                 <>
                   <p className="text-sm">
@@ -1507,17 +1530,40 @@ function SubmissionCard({
                       ))}
                     </ol>
                   </details>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-fit"
-                    onClick={() =>
-                      update(sub.id, { mark: `${pdfMatch.score}/${pdfMatch.total}` })
-                    }
-                  >
-                    Use as final result
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-fit"
+                      onClick={() =>
+                        update(sub.id, { mark: `${pdfMatch.score}/${pdfMatch.total}` })
+                      }
+                    >
+                      Use as final result
+                    </Button>
+                    {!sub.answerBreakdown && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          safe(
+                            () => update(sub.id, { answerBreakdown: pdfMatch.rows }),
+                            "Answers shared with student",
+                          )
+                        }
+                      >
+                        Share correct answers with student
+                      </Button>
+                    )}
+                  </div>
+                  {!sub.answerBreakdown && (
+                    <p className="text-muted-foreground text-xs">
+                      Reveals the correct answer for every question — don't share if you reuse this paper for other
+                      students.
+                    </p>
+                  )}
                 </>
               )}
             </div>

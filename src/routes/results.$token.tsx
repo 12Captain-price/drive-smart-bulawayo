@@ -81,6 +81,27 @@ function Results() {
           <p className="text-muted-foreground text-sm">
             Written on {new Date(submission.submittedAt).toLocaleDateString()}
           </p>
+          {submission.answerBreakdown && submission.answerBreakdown.length > 0 && (
+            <details className="w-full text-left text-sm">
+              <summary className="text-primary cursor-pointer text-center font-medium">
+                See your answers
+              </summary>
+              <ol className="bg-secondary/40 mt-3 space-y-2 rounded-lg border p-4">
+                {submission.answerBreakdown.map((r) => (
+                  <li key={r.n}>
+                    <span className="font-medium">Q{r.n}.</span>{" "}
+                    {r.match ? (
+                      <span className="text-success">Correct — you wrote "{r.given}"</span>
+                    ) : (
+                      <span className="text-destructive">
+                        {r.given ? `You wrote "${r.given}"` : "No answer found"} — correct answer: {r.key}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
           <Button asChild size="lg" className="bg-success text-success-foreground hover:bg-success/90">
             <a
               href={waLink(settings.whatsapp, `Hi Auto Driving School, I have a question about my ${test?.title ?? "test"} result.`)}
