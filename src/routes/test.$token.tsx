@@ -5,7 +5,6 @@ import {
   Camera,
   CheckCircle2,
   Clock,
-  ExternalLink,
   FileText,
   ListChecks,
   Loader2,
@@ -34,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Section } from "@/components/site/blocks";
+import { PdfPaper } from "@/components/site/PdfPaper";
 import {
   fileToDataUrl,
   gradeMcq,
@@ -595,15 +595,10 @@ function TakeTest() {
                     <p className="label-mono text-muted-foreground flex items-center gap-1.5">
                       <FileText className="size-3.5" /> Test paper
                     </p>
-                    <Button asChild variant="ghost" size="sm">
-                      <a href={test.paper} target="_blank" rel="noreferrer">
-                        <ExternalLink className="size-3.5" /> Open in new tab
-                      </a>
-                    </Button>
                   </div>
-                  <div className="bg-secondary/30 h-[60vh] overflow-hidden rounded-lg border lg:h-[70vh]">
+                  <div className="bg-secondary/30 h-[60vh] overflow-y-auto rounded-lg border lg:h-[70vh]">
                     {isPdfPaper ? (
-                      <iframe title="Test paper" src={test.paper} className="size-full" />
+                      <PdfPaper src={test.paper!} className="size-full" />
                     ) : (
                       <img src={test.paper} alt="Test paper" className="size-full object-contain" />
                     )}

@@ -9,72 +9,27 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AboutRouteImport } from './routes/about'
-import { Route as AdminRouteImport } from './routes/admin'
-import { Route as ContactRouteImport } from './routes/contact'
-import { Route as FaqRouteImport } from './routes/faq'
-import { Route as GalleryRouteImport } from './routes/gallery'
-import { Route as GuideRouteImport } from './routes/guide'
-import { Route as MyLessonsRouteImport } from './routes/my-lessons'
-import { Route as PackagesRouteImport } from './routes/packages'
-import { Route as PayRouteImport } from './routes/pay'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TipsRouteImport } from './routes/tips'
-import { Route as AdminResetPasswordRouteImport } from './routes/admin.reset-password'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as PayRouteImport } from './routes/pay'
+import { Route as PackagesRouteImport } from './routes/packages'
+import { Route as MyLessonsRouteImport } from './routes/my-lessons'
+import { Route as GuideRouteImport } from './routes/guide'
+import { Route as GalleryRouteImport } from './routes/gallery'
+import { Route as FaqRouteImport } from './routes/faq'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as InstructorsIndexRouteImport } from './routes/instructors.index'
-import { Route as InstructorsSlugRouteImport } from './routes/instructors.$slug'
-import { Route as ResultsTokenRouteImport } from './routes/results.$token'
 import { Route as TestTokenRouteImport } from './routes/test.$token'
+import { Route as ResultsTokenRouteImport } from './routes/results.$token'
+import { Route as InstructorsSlugRouteImport } from './routes/instructors.$slug'
+import { Route as AdminResetPasswordRouteImport } from './routes/admin.reset-password'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AboutRoute = AboutRouteImport.update({
-  id: '/about',
-  path: '/about',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContactRoute = ContactRouteImport.update({
-  id: '/contact',
-  path: '/contact',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FaqRoute = FaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GalleryRoute = GalleryRouteImport.update({
-  id: '/gallery',
-  path: '/gallery',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GuideRoute = GuideRouteImport.update({
-  id: '/guide',
-  path: '/guide',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyLessonsRoute = MyLessonsRouteImport.update({
-  id: '/my-lessons',
-  path: '/my-lessons',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PackagesRoute = PackagesRouteImport.update({
-  id: '/packages',
-  path: '/packages',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PayRoute = PayRouteImport.update({
-  id: '/pay',
-  path: '/pay',
+const TipsRoute = TipsRouteImport.update({
+  id: '/tips',
+  path: '/tips',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -82,24 +37,64 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TipsRoute = TipsRouteImport.update({
-  id: '/tips',
-  path: '/tips',
+const PayRoute = PayRouteImport.update({
+  id: '/pay',
+  path: '/pay',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminResetPasswordRoute = AdminResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => AdminRoute,
+const PackagesRoute = PackagesRouteImport.update({
+  id: '/packages',
+  path: '/packages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyLessonsRoute = MyLessonsRouteImport.update({
+  id: '/my-lessons',
+  path: '/my-lessons',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideRoute = GuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GalleryRoute = GalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const InstructorsIndexRoute = InstructorsIndexRouteImport.update({
   id: '/instructors/',
   path: '/instructors/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const InstructorsSlugRoute = InstructorsSlugRouteImport.update({
-  id: '/instructors/$slug',
-  path: '/instructors/$slug',
+const TestTokenRoute = TestTokenRouteImport.update({
+  id: '/test/$token',
+  path: '/test/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResultsTokenRoute = ResultsTokenRouteImport.update({
@@ -107,10 +102,15 @@ const ResultsTokenRoute = ResultsTokenRouteImport.update({
   path: '/results/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TestTokenRoute = TestTokenRouteImport.update({
-  id: '/test/$token',
-  path: '/test/$token',
+const InstructorsSlugRoute = InstructorsSlugRouteImport.update({
+  id: '/instructors/$slug',
+  path: '/instructors/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminResetPasswordRoute = AdminResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AdminRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -252,74 +252,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contact': {
-      id: '/contact'
-      path: '/contact'
-      fullPath: '/contact'
-      preLoaderRoute: typeof ContactRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/faq': {
-      id: '/faq'
-      path: '/faq'
-      fullPath: '/faq'
-      preLoaderRoute: typeof FaqRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gallery': {
-      id: '/gallery'
-      path: '/gallery'
-      fullPath: '/gallery'
-      preLoaderRoute: typeof GalleryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/guide': {
-      id: '/guide'
-      path: '/guide'
-      fullPath: '/guide'
-      preLoaderRoute: typeof GuideRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-lessons': {
-      id: '/my-lessons'
-      path: '/my-lessons'
-      fullPath: '/my-lessons'
-      preLoaderRoute: typeof MyLessonsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/packages': {
-      id: '/packages'
-      path: '/packages'
-      fullPath: '/packages'
-      preLoaderRoute: typeof PackagesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pay': {
-      id: '/pay'
-      path: '/pay'
-      fullPath: '/pay'
-      preLoaderRoute: typeof PayRouteImport
+    '/tips': {
+      id: '/tips'
+      path: '/tips'
+      fullPath: '/tips'
+      preLoaderRoute: typeof TipsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap.xml': {
@@ -329,19 +266,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tips': {
-      id: '/tips'
-      path: '/tips'
-      fullPath: '/tips'
-      preLoaderRoute: typeof TipsRouteImport
+    '/pay': {
+      id: '/pay'
+      path: '/pay'
+      fullPath: '/pay'
+      preLoaderRoute: typeof PayRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/reset-password': {
-      id: '/admin/reset-password'
-      path: '/reset-password'
-      fullPath: '/admin/reset-password'
-      preLoaderRoute: typeof AdminResetPasswordRouteImport
-      parentRoute: typeof AdminRoute
+    '/packages': {
+      id: '/packages'
+      path: '/packages'
+      fullPath: '/packages'
+      preLoaderRoute: typeof PackagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-lessons': {
+      id: '/my-lessons'
+      path: '/my-lessons'
+      fullPath: '/my-lessons'
+      preLoaderRoute: typeof MyLessonsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide': {
+      id: '/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof GuideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gallery': {
+      id: '/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof GalleryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/instructors/': {
       id: '/instructors/'
@@ -350,11 +343,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstructorsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/instructors/$slug': {
-      id: '/instructors/$slug'
-      path: '/instructors/$slug'
-      fullPath: '/instructors/$slug'
-      preLoaderRoute: typeof InstructorsSlugRouteImport
+    '/test/$token': {
+      id: '/test/$token'
+      path: '/test/$token'
+      fullPath: '/test/$token'
+      preLoaderRoute: typeof TestTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/results/$token': {
@@ -364,12 +357,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResultsTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/test/$token': {
-      id: '/test/$token'
-      path: '/test/$token'
-      fullPath: '/test/$token'
-      preLoaderRoute: typeof TestTokenRouteImport
+    '/instructors/$slug': {
+      id: '/instructors/$slug'
+      path: '/instructors/$slug'
+      fullPath: '/instructors/$slug'
+      preLoaderRoute: typeof InstructorsSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/reset-password': {
+      id: '/admin/reset-password'
+      path: '/reset-password'
+      fullPath: '/admin/reset-password'
+      preLoaderRoute: typeof AdminResetPasswordRouteImport
+      parentRoute: typeof AdminRoute
     }
   }
 }
