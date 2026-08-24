@@ -165,7 +165,7 @@ function Home() {
               className="text-foreground w-full rounded-full border-2 font-mono text-xs font-bold tracking-[0.12em] uppercase transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 active:shadow-inner sm:w-auto sm:px-8 sm:text-[13px]"
             >
               <a href={waLink(settings.whatsapp, settings.waGeneralTemplate)} target="_blank" rel="noreferrer">
-                WhatsApp {settings.phone}
+                WhatsApp 
               </a>
             </Button>
           </div>
