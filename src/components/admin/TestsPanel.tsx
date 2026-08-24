@@ -16,8 +16,10 @@ import {
   Sparkles,
   Trash2,
   Users,
+  Maximize2,
 } from "lucide-react";
 import { PdfPaper } from "@/components/site/PdfPaper";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { extractPdfText, matchPdfAnswers, type PdfMatchResult } from "@/lib/pdfMatch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,6 +124,57 @@ async function safe(fn: () => unknown, message: string) {
   } catch (err) {
     toast.error(errorMessage(err, "Save failed"), { duration: Infinity });
   }
+}
+
+/**
+ * A small thumbnail (test paper, answer key, or a student's photo) with a
+ * "view full size" button that pops the same content open much bigger in a
+ * dialog. Needed because the marking panel's two-column layout only gives
+ * each item ~300px of width to render in — nowhere near enough to read a
+ * real exam paper or make out handwriting in a photo.
+ */
+function ExpandableMedia({
+  label,
+  src,
+  isPdf,
+  alt,
+  className,
+}: {
+  label: string;
+  src: string;
+  isPdf: boolean;
+  alt: string;
+  className?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <>
+      <div className={cn("bg-secondary/30 relative overflow-y-auto rounded-lg border", className)}>
+        {isPdf ? <PdfPaper src={src} className="size-full" /> : <img src={src} alt={alt} className="size-full object-contain" />}
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="absolute right-2 top-2 shadow"
+          onClick={() => setExpanded(true)}
+        >
+          <Maximize2 className="size-4" /> View full size
+        </Button>
+      </div>
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent className="flex h-[90vh] w-[95vw] max-w-4xl flex-col gap-3 p-4">
+          <DialogTitle>{label}</DialogTitle>
+          <div className="bg-secondary/30 min-h-0 flex-1 overflow-y-auto rounded-lg border">
+            {isPdf ? (
+              <PdfPaper src={src} className="size-full" />
+            ) : (
+              <img src={src} alt={alt} className="w-full object-contain" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 /* ------------------------------ search pickers ------------------------------ */
@@ -1352,13 +1405,13 @@ function SubmissionCard({
               <div className="grid gap-1">
                 <Label>Test paper</Label>
                 {test.paper ? (
-                  <div className="bg-secondary/30 h-96 overflow-y-auto rounded-lg border">
-                    {paperIsPdf ? (
-                      <PdfPaper src={test.paper} className="size-full" />
-                    ) : (
-                      <img src={test.paper} alt="Test paper" className="size-full object-contain" />
-                    )}
-                  </div>
+                  <ExpandableMedia
+                    label="Test paper"
+                    src={test.paper}
+                    isPdf={paperIsPdf}
+                    alt="Test paper"
+                    className="h-96"
+                  />
                 ) : (
                   <p className="text-muted-foreground rounded-lg border p-3 text-sm">No test paper was uploaded.</p>
                 )}
@@ -1366,9 +1419,13 @@ function SubmissionCard({
               <div className="grid gap-1">
                 <Label>{sub.photo ? "Photo of their written answers" : "Their typed answers"}</Label>
                 {sub.photo ? (
-                  <div className="h-96 overflow-y-auto rounded-lg border">
-                    <img src={sub.photo} alt="Student answer sheet" className="w-full object-contain" />
-                  </div>
+                  <ExpandableMedia
+                    label="Their written answers"
+                    src={sub.photo}
+                    isPdf={false}
+                    alt="Student answer sheet"
+                    className="h-96"
+                  />
                 ) : (
                   <p className="bg-secondary/50 h-96 overflow-y-auto rounded-lg border p-3 text-sm whitespace-pre-wrap">
                     {sub.typed}
@@ -1384,13 +1441,13 @@ function SubmissionCard({
               <div className="mt-2 space-y-2">
                 {test.answerKey && (
                   <>
-                    <div className="bg-secondary/30 h-72 overflow-y-auto rounded-lg border">
-                      {keyIsPdf ? (
-                        <PdfPaper src={test.answerKey} className="size-full" />
-                      ) : (
-                        <img src={test.answerKey} alt="Answer key" className="size-full object-contain" />
-                      )}
-                    </div>
+                    <ExpandableMedia
+                      label="Answer key"
+                      src={test.answerKey}
+                      isPdf={keyIsPdf}
+                      alt="Answer key"
+                      className="h-72"
+                    />
                     <a href={test.answerKey} download={test.answerKeyName} className="text-primary text-xs underline">
                       <FileText className="mr-1 inline size-3.5" /> Download original
                     </a>
