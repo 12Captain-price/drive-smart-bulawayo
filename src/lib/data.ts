@@ -2014,9 +2014,25 @@ export function publishedPhotos(photos: Photo[], category: PhotoCategory) {
   return photos.filter((p) => p.status === "published" && p.category === category);
 }
 
+/** Zimbabwe numbers get typed in local format everywhere on this site (e.g.
+ *  "078 873 3625" or "0771234567") since that's how staff and students
+ *  naturally write them — but wa.me links need the full international
+ *  number with no leading 0. Without this, "Send WhatsApp" buttons that use
+ *  a student's or instructor's own phone (as opposed to the site's main
+ *  settings.whatsapp number, which is already stored correctly) build an
+ *  invalid link and WhatsApp shows an error instead of opening the chat. */
+function normalizeZimWhatsApp(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("263")) return digits;
+  if (digits.startsWith("0")) return `263${digits.slice(1)}`;
+  // A 9-digit local mobile number typed without its leading 0.
+  if (digits.length === 9) return `263${digits}`;
+  return digits;
+}
+
 /** WhatsApp deep link, optionally with a pre-filled message. */
 export const waLink = (whatsapp: string, message?: string) =>
-  `https://wa.me/${whatsapp.replace(/\D/g, "")}` +
+  `https://wa.me/${normalizeZimWhatsApp(whatsapp)}` +
   (message ? `?text=${encodeURIComponent(message)}` : "");
 
 /** Bookable lesson start times offered on the contact form. */
