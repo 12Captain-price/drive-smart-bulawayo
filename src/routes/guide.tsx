@@ -10,13 +10,13 @@ export const Route = createFileRoute("/guide")({
   component: Guide,
   head: () => ({
     meta: [
-      { title: "How to Use This Site — Auto Driving School Bulawayo" },
+      { title: "How to Use This Site | Auto Driving School Bulawayo" },
       {
         name: "description",
         content:
           "Step-by-step help for booking driving lessons, paying with EcoCash and writing your test with Auto Driving School in Bulawayo.",
       },
-      { property: "og:title", content: "How to Use This Site — Auto Driving School" },
+      { property: "og:title", content: "How to Use This Site | Auto Driving School" },
       {
         property: "og:description",
         content: "Simple guides for booking lessons, paying with EcoCash and writing your test.",

@@ -2,17 +2,19 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Award,
+  ArrowRight,
   CalendarClock,
   Car,
   ChevronLeft,
   ChevronRight,
   Clock,
+  CreditCard,
   FileText,
+  Layers,
   MapPin,
   Phone,
   PhoneCall,
   Quote,
-  RotateCw,
   ShieldCheck,
   Star,
   Trophy,
@@ -209,7 +211,7 @@ export function HeroCarousel({
   return (
     <div className="hero-dark bg-background relative overflow-hidden">
       {/* Dashed lane-marking run through the hero itself as the visual
-         spine between the headline and the photo — the same road motif
+         spine between the headline and the photo, the same road motif
          used in LaneDivider / HowItWorks, not confined to a section
          further down the page. */}
       <div
@@ -344,22 +346,28 @@ const JOURNEY_STEPS = [
   {
     icon: PhoneCall,
     title: "Enquire",
-    desc: "WhatsApp or call us your preferred days and times — we match you with an instructor and confirm a start date.",
+    desc: "Enquire or call us for your preferred days and times.",
+    linkText: "For our rates click here",
+    linkTo: "/",
+    linkHash: "pricing",
+  },
+  {
+    icon: CreditCard,
+    title: "Make payment",
+    desc: "Make your payment for your preferred package.",
+    linkText: "Click here",
+    linkTo: "/contact",
+    highlight: true,
   },
   {
     icon: Car,
     title: "First lesson",
-    desc: "Meet your instructor, get comfortable behind the wheel in a dual-control car, and cover the basics on quiet roads.",
-  },
-  {
-    icon: RotateCw,
-    title: "Practice",
-    desc: "Regular lessons build road skills, parking, and confidence in traffic — pace tracked against your package.",
+    desc: "Meet your instructor, get comfortable behind the wheel in a dual-control car, and cover the basics on quiet roads, building road skills, parking, and confidence in traffic.",
   },
   {
     icon: Trophy,
     title: "VID test & pass",
-    desc: "We book your VID test when you're ready and prep you for the exact route — then you're driving on your own.",
+    desc: "We book your VID test when you're ready and prep you for the exact route, then you're driving on your own.",
   },
 ] as const;
 
@@ -392,7 +400,7 @@ export function HowItWorks() {
       <SectionHeading
         eyebrow="The route"
         title="How it works"
-        subtitle="From your first message to driving on your own — four stops, no detours."
+        subtitle="From your first message to driving on your own: four stops, no detours."
         center
       />
       <div className="relative mx-auto mt-14 max-w-xl">
@@ -420,6 +428,7 @@ export function HowItWorks() {
                   className={cn(
                     "bg-background relative z-10 flex size-14 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-500",
                     isActive ? "border-primary text-primary" : "border-border text-muted-foreground",
+                    "highlight" in step && isActive && "bg-accent/10 ring-4 ring-accent/20",
                   )}
                 >
                   <Icon className="size-6" />
@@ -428,6 +437,21 @@ export function HowItWorks() {
                   <p className="label-mono text-accent">Stop {i + 1}</p>
                   <h3 className="mt-1 font-bold">{step.title}</h3>
                   <p className="text-muted-foreground mt-1 text-sm">{step.desc}</p>
+                  {"linkTo" in step && (
+                    <Link
+                      to={step.linkTo}
+                      hash={"linkHash" in step ? step.linkHash : undefined}
+                      className={cn(
+                        "mt-3 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-mono text-[11px] font-bold tracking-wide uppercase transition-all duration-200 hover:-translate-y-0.5",
+                        "highlight" in step
+                          ? "bg-accent text-accent-foreground shadow-md shadow-accent/25 hover:shadow-lg"
+                          : "bg-primary/10 text-primary hover:bg-primary/15",
+                      )}
+                    >
+                      {step.linkText}
+                      <ArrowRight className="size-3.5" />
+                    </Link>
+                  )}
                 </div>
               </li>
             );
@@ -551,39 +575,50 @@ export function PackageCard({
   popular?: boolean;
 }) {
   const effectivePrice = promo?.promoPrice ?? pkg.price;
-  const perLesson = pkg.lessons > 0 ? effectivePrice / pkg.lessons : null;
+  const isCombo = !!pkg.isCombo;
 
   return (
     <Card
       className={cn(
         "relative flex h-full flex-col overflow-hidden rounded-3xl transition-[transform,box-shadow] duration-300 will-change-transform",
         "hover:-translate-y-1.5 hover:shadow-lg",
-        popular
-          ? "border-primary/60 from-primary/[0.07] to-transparent shadow-[0_20px_60px_-20px_var(--primary)]/40 relative bg-gradient-to-b"
-          : "hover:border-primary/30",
+        popular &&
+          "border-primary/60 from-primary/[0.07] to-transparent shadow-[0_20px_60px_-20px_var(--primary)]/40 relative bg-gradient-to-b",
+        isCombo &&
+          "border-accent/50 from-accent/[0.08] via-primary/[0.04] to-transparent border-dashed bg-gradient-to-br",
+        !popular && !isCombo && "hover:border-primary/30",
       )}
     >
+      {isCombo && (
+        <span className="from-accent to-primary text-primary-foreground absolute top-5 left-5 inline-flex items-center gap-1 rounded-full bg-gradient-to-r px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase shadow-sm">
+          <Layers size={10} /> Combo
+        </span>
+      )}
       {popular && (
         <span className="from-primary to-accent text-primary-foreground absolute top-5 right-5 inline-flex items-center gap-1 rounded-full bg-gradient-to-r px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase shadow-sm">
           <Star size={10} className="fill-current" /> Most popular
         </span>
       )}
-      <CardContent className="flex flex-1 flex-col pt-6">
+      <CardContent className={cn("flex flex-1 flex-col pt-6", isCombo && "pt-14")}>
         <div className="flex items-start justify-between gap-3 pr-2">
           <h3 className="text-lg font-semibold tracking-tight">{pkg.name}</h3>
-          <span className="label-mono bg-secondary rounded-md px-2 py-1">{pkg.lessons} lessons</span>
+          {!!pkg.lessons && (
+            <span className="label-mono bg-secondary rounded-md px-2 py-1">{pkg.lessons} lessons</span>
+          )}
         </div>
         <div className="mt-5 flex items-baseline gap-2">
           {promo?.promoPrice != null && (
             <span className="text-muted-foreground font-mono text-lg line-through">${pkg.price}</span>
           )}
-          <span className="text-primary font-mono text-4xl font-bold tracking-tight">${effectivePrice}</span>
+          <span
+            className={cn(
+              "font-mono text-4xl font-bold tracking-tight",
+              isCombo ? "text-accent" : "text-primary",
+            )}
+          >
+            ${effectivePrice}
+          </span>
         </div>
-        {perLesson != null && (
-          <p className="text-muted-foreground mt-1 font-mono text-xs tracking-wide uppercase">
-            ≈ ${perLesson.toFixed(2)} per lesson
-          </p>
-        )}
         <p className="text-muted-foreground mt-3 text-sm">{pkg.description}</p>
         <ul className="mt-5 flex-1 space-y-2 text-sm">
           {pkg.includes.map((i) => (
@@ -597,6 +632,9 @@ export function PackageCard({
           className={cn(
             "mt-6 w-full rounded-full font-semibold",
             popular && "from-primary to-accent text-primary-foreground bg-gradient-to-r hover:brightness-110",
+            !popular &&
+              isCombo &&
+              "from-accent to-primary text-primary-foreground bg-gradient-to-r hover:brightness-110",
           )}
         >
           <Link to="/contact">Book this package</Link>
@@ -670,7 +708,7 @@ export function ReviewForm() {
         status: "pending",
         createdAt: new Date().toISOString(),
       });
-      toast.success("Thanks — your review will appear once approved");
+      toast.success("Thanks, your review will appear once approved");
       setName("");
       setComment("");
       setRating(5);
@@ -789,7 +827,7 @@ export function CtaBand({ title = "Ready to start driving?" }: { title?: string 
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-14 text-center">
         <h2 className="text-2xl font-bold sm:text-3xl">{title}</h2>
         <p className="max-w-xl text-sm opacity-90">
-          Book your first lesson today — {settings.hours.toLowerCase()}.
+          Book your first lesson today, {settings.hours.toLowerCase()}.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Button asChild size="lg" variant="secondary">

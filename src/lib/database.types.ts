@@ -23,20 +23,26 @@ export interface Database {
           slug: string;
           name: string;
           price: number;
-          lessons: number;
+          lessons: number | null;
           description: string;
           includes: string[];
           lesson_type: string | null;
+          featured: boolean | null;
+          show_on_home: boolean | null;
+          is_combo: boolean | null;
         },
         {
           id?: string;
           slug: string;
           name: string;
           price?: number;
-          lessons?: number;
+          lessons?: number | null;
           description?: string;
           includes?: string[];
           lesson_type?: string | null;
+          featured?: boolean | null;
+          show_on_home?: boolean | null;
+          is_combo?: boolean | null;
         }
       >;
       instructors: Table<

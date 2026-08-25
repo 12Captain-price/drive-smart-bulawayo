@@ -24,7 +24,7 @@ export const siteGuide: GuideGroup[] = [
       },
       {
         q: "What is the booking reference?",
-        a: "It's a short code like ADS-7K3Q9 that we both use to find your booking. Keep it — you can download the receipt from the same screen.",
+        a: "It's a short code like ADS-7K3Q9 that we both use to find your booking. Keep it, you can download the receipt from the same screen.",
       },
     ],
   },
@@ -73,11 +73,11 @@ export const adminGuide: GuideGroup[] = [
     title: "Every day",
     entries: [
       {
-        q: "A new booking came in — what now?",
+        q: "A new booking came in, what now?",
         a: "Open Enquiries. Tap the status that fits: Contacted once you've called, Scheduled once the lesson is set, Enrolled once they've signed up. Enrolled bookings show an 'Add to Students' button.",
       },
       {
-        q: "Someone paid — how do I check it?",
+        q: "Someone paid, how do I check it?",
         a: "Open Payments. Compare the reference with your EcoCash statement, then tap Confirmed or Not Found. Add a short note for yourself, and tap Receipt to print or save one for the learner.",
       },
     ],

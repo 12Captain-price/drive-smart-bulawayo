@@ -21,10 +21,8 @@ import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as InstructorsIndexRouteImport } from './routes/instructors.index'
 import { Route as TestTokenRouteImport } from './routes/test.$token'
 import { Route as ResultsTokenRouteImport } from './routes/results.$token'
-import { Route as InstructorsSlugRouteImport } from './routes/instructors.$slug'
 import { Route as AdminResetPasswordRouteImport } from './routes/admin.reset-password'
 
 const TipsRoute = TipsRouteImport.update({
@@ -87,11 +85,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const InstructorsIndexRoute = InstructorsIndexRouteImport.update({
-  id: '/instructors/',
-  path: '/instructors/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TestTokenRoute = TestTokenRouteImport.update({
   id: '/test/$token',
   path: '/test/$token',
@@ -100,11 +93,6 @@ const TestTokenRoute = TestTokenRouteImport.update({
 const ResultsTokenRoute = ResultsTokenRouteImport.update({
   id: '/results/$token',
   path: '/results/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InstructorsSlugRoute = InstructorsSlugRouteImport.update({
-  id: '/instructors/$slug',
-  path: '/instructors/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminResetPasswordRoute = AdminResetPasswordRouteImport.update({
@@ -127,10 +115,8 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/tips': typeof TipsRoute
   '/admin/reset-password': typeof AdminResetPasswordRoute
-  '/instructors/$slug': typeof InstructorsSlugRoute
   '/results/$token': typeof ResultsTokenRoute
   '/test/$token': typeof TestTokenRoute
-  '/instructors/': typeof InstructorsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -146,10 +132,8 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/tips': typeof TipsRoute
   '/admin/reset-password': typeof AdminResetPasswordRoute
-  '/instructors/$slug': typeof InstructorsSlugRoute
   '/results/$token': typeof ResultsTokenRoute
   '/test/$token': typeof TestTokenRoute
-  '/instructors': typeof InstructorsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -166,10 +150,8 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/tips': typeof TipsRoute
   '/admin/reset-password': typeof AdminResetPasswordRoute
-  '/instructors/$slug': typeof InstructorsSlugRoute
   '/results/$token': typeof ResultsTokenRoute
   '/test/$token': typeof TestTokenRoute
-  '/instructors/': typeof InstructorsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -187,10 +169,8 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/tips'
     | '/admin/reset-password'
-    | '/instructors/$slug'
     | '/results/$token'
     | '/test/$token'
-    | '/instructors/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -206,10 +186,8 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/tips'
     | '/admin/reset-password'
-    | '/instructors/$slug'
     | '/results/$token'
     | '/test/$token'
-    | '/instructors'
   id:
     | '__root__'
     | '/'
@@ -225,10 +203,8 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/tips'
     | '/admin/reset-password'
-    | '/instructors/$slug'
     | '/results/$token'
     | '/test/$token'
-    | '/instructors/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -244,10 +220,8 @@ export interface RootRouteChildren {
   PayRoute: typeof PayRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TipsRoute: typeof TipsRoute
-  InstructorsSlugRoute: typeof InstructorsSlugRoute
   ResultsTokenRoute: typeof ResultsTokenRoute
   TestTokenRoute: typeof TestTokenRoute
-  InstructorsIndexRoute: typeof InstructorsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -336,13 +310,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/instructors/': {
-      id: '/instructors/'
-      path: '/instructors'
-      fullPath: '/instructors/'
-      preLoaderRoute: typeof InstructorsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/test/$token': {
       id: '/test/$token'
       path: '/test/$token'
@@ -355,13 +322,6 @@ declare module '@tanstack/react-router' {
       path: '/results/$token'
       fullPath: '/results/$token'
       preLoaderRoute: typeof ResultsTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/instructors/$slug': {
-      id: '/instructors/$slug'
-      path: '/instructors/$slug'
-      fullPath: '/instructors/$slug'
-      preLoaderRoute: typeof InstructorsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/reset-password': {
@@ -397,10 +357,8 @@ const rootRouteChildren: RootRouteChildren = {
   PayRoute: PayRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TipsRoute: TipsRoute,
-  InstructorsSlugRoute: InstructorsSlugRoute,
   ResultsTokenRoute: ResultsTokenRoute,
   TestTokenRoute: TestTokenRoute,
-  InstructorsIndexRoute: InstructorsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -46,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -154,10 +155,10 @@ export const Route = createFileRoute("/admin")({
   component: Admin,
   head: () => ({
     meta: [
-      { title: "Admin — Auto Driving School" },
+      { title: "Admin | Auto Driving School" },
       { name: "description", content: "Private admin dashboard for Auto Driving School." },
       { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: "Admin — Auto Driving School" },
+      { property: "og:title", content: "Admin | Auto Driving School" },
       { property: "og:description", content: "Private admin area." },
     ],
   }),
@@ -185,6 +186,10 @@ const SECTIONS = [
   "Help",
 ] as const;
 type SectionName = (typeof SECTIONS)[number];
+
+/** localStorage key for "when did this browser last open the Payments tab" —
+ *  drives the badge for newly-arrived payments, see badgeCounts below. */
+const PAYMENTS_LAST_SEEN_KEY = "ads-admin-payments-last-seen";
 
 /** Icon shown next to each section in the sidebar. */
 const NAV_ICONS: Record<SectionName, typeof Inbox> = {
@@ -369,7 +374,7 @@ function Admin() {
         toast.success(`Moved ${total} item${total === 1 ? "" : "s"} to the database.`);
         window.location.reload();
       } else {
-        toast.info("Nothing to move — everything is already in the database.");
+        toast.info("Nothing to move, everything is already in the database.");
         setHasLegacy(false);
       }
     } catch (err) {
@@ -385,9 +390,32 @@ function Admin() {
   const { items: navPayments } = usePayments();
   const { items: navTestimonials } = useTestimonials();
   const { items: navSubmissions } = useSubmissions();
+  // Automatic EcoCash/OneMoney/card payments land as "confirmed" straight
+  // away (Paynow already verified them) — they never go through "pending",
+  // so a badge that only counted "pending" would stay silent for every
+  // online payment. Track when this browser last opened the Payments tab
+  // and also badge anything newer than that, regardless of status.
+  const [paymentsLastSeen, setPaymentsLastSeen] = useState<number>(() => {
+    if (typeof window === "undefined") return Date.now();
+    const raw = localStorage.getItem(PAYMENTS_LAST_SEEN_KEY);
+    if (raw) return Number(raw);
+    // First time this runs on a browser, there's no baseline yet — treat
+    // "now" as the baseline so it doesn't badge every payment ever taken.
+    const now = Date.now();
+    localStorage.setItem(PAYMENTS_LAST_SEEN_KEY, String(now));
+    return now;
+  });
+  useEffect(() => {
+    if (section !== "Payments") return;
+    const now = Date.now();
+    localStorage.setItem(PAYMENTS_LAST_SEEN_KEY, String(now));
+    setPaymentsLastSeen(now);
+  }, [section]);
   const badgeCounts: Partial<Record<SectionName, number>> = {
     Enquiries: navEnquiries.filter((e) => e.status === "new").length,
-    Payments: navPayments.filter((p) => p.status === "pending").length,
+    Payments: navPayments.filter(
+      (p) => p.status === "pending" || new Date(p.createdAt).getTime() > paymentsLastSeen,
+    ).length,
     Testimonials: navTestimonials.filter((t) => t.status === "pending").length,
     Tests: navSubmissions.filter((s) => !s.mark).length,
   };
@@ -582,7 +610,7 @@ function Admin() {
               <p className="font-medium">Data saved locally in this browser</p>
               <p className="text-muted-foreground text-sm">
                 Packages, testimonials, promotions, tips, enquiries, team, payments or site content
-                saved here haven't been moved to the shared database yet — they won't show up on
+                saved here haven't been moved to the shared database yet, they won't show up on
                 your phone or any other browser until you move them.
               </p>
             </div>
@@ -763,13 +791,13 @@ function EnquiriesPanel({ onScheduleNow }: { onScheduleNow: (studentId: string) 
                   )}
                 </p>
                 <p className="text-muted-foreground mt-1 text-sm">
-                  {packages.find((p) => p.id === e.packageId)?.name ?? "—"} ·{" "}
+                  {packages.find((p) => p.id === e.packageId)?.name ?? "-"} ·{" "}
                   {e.days.join(", ") || "any day"} · {e.times.join(", ") || "any time"}
                   {e.slots?.length ? ` · slots: ${e.slots.join(", ")}` : ""}
                 </p>
                 {clashing && (
                   <p className="text-destructive mt-1 text-xs">
-                    Overlaps another live booking — confirm the time with the learner.
+                    Overlaps another live booking, confirm the time with the learner.
                   </p>
                 )}
                 <div className="mt-3">
@@ -831,7 +859,7 @@ function EnquiryDetailDialog({
       renderTemplate(settings.waEnquiryFollowUpTemplate, {
         name: e.name,
         phone: e.phone,
-        package: pkg ? `${pkg.name} ($${pkg.price})` : "—",
+        package: pkg ? `${pkg.name} ($${pkg.price})` : "-",
         days: e.days.join(", ") || "any day",
         times: e.times.join(", ") || "any time",
         slots: e.slots?.join(", ") || "flexible",
@@ -869,7 +897,7 @@ function EnquiryDetailDialog({
             </div>
             <div>
               <p className="label-mono text-muted-foreground">Package</p>
-              <p>{pkg ? `${pkg.name} ($${pkg.price})` : "—"}</p>
+              <p>{pkg ? `${pkg.name} ($${pkg.price})` : "-"}</p>
             </div>
             <div>
               <p className="label-mono text-muted-foreground">Preferred days</p>
@@ -960,9 +988,12 @@ function PackagesPanel() {
               slug: "new-package-" + Date.now(),
               name: "New package",
               price: 0,
-              lessons: 1,
+              lessons: undefined,
               description: "",
               includes: [],
+              featured: false,
+              showOnHome: true,
+              isCombo: false,
             });
             setJustCreatedId(created.id);
           }, "Package added")
@@ -980,6 +1011,36 @@ function PackagesPanel() {
         />
       ))}
     </div>
+  );
+}
+
+/** A one-bullet-per-line textarea. Keeps its own raw text as local state so an
+ *  in-progress blank line (from pressing Enter) isn't immediately stripped by
+ *  the parent's filtered array — only synced back up on blur. */
+function IncludesEditor({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (includes: string[]) => void;
+}) {
+  const [text, setText] = useState(value.join("\n"));
+
+  return (
+    <Textarea
+      rows={4}
+      placeholder={"e.g.\n8 driving lessons\nDual-control vehicle\nYard practice"}
+      value={text}
+      onChange={(ev) => setText(ev.target.value)}
+      onBlur={() => {
+        const includes = text
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        setText(includes.join("\n"));
+        onChange(includes);
+      }}
+    />
   );
 }
 
@@ -1006,13 +1067,29 @@ function PackageCard({
           {p.name.charAt(0).toUpperCase() || "?"}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold">{p.name || "Untitled package"}</span>
+          <span className="flex items-center gap-2">
+            <span className="block truncate font-semibold">{p.name || "Untitled package"}</span>
+            {p.featured && (
+              <Badge className="bg-primary/10 text-primary shrink-0 border-none font-mono text-[0.6rem] font-bold tracking-wide uppercase">
+                Popular
+              </Badge>
+            )}
+            {p.isCombo && (
+              <Badge className="bg-accent/10 text-accent shrink-0 border-none font-mono text-[0.6rem] font-bold tracking-wide uppercase">
+                Combo
+              </Badge>
+            )}
+          </span>
           <span className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
             <span>${p.price}</span>
-            <span aria-hidden>·</span>
-            <span>
-              {p.lessons} lesson{p.lessons === 1 ? "" : "s"}
-            </span>
+            {!!p.lessons && (
+              <>
+                <span aria-hidden>·</span>
+                <span>
+                  {p.lessons} lesson{p.lessons === 1 ? "" : "s"}
+                </span>
+              </>
+            )}
             {p.lessonType && (
               <>
                 <span aria-hidden>·</span>
@@ -1022,6 +1099,12 @@ function PackageCard({
                 >
                   {p.lessonType} only
                 </Badge>
+              </>
+            )}
+            {p.showOnHome === false && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="text-muted-foreground/80">Hidden from home</span>
               </>
             )}
           </span>
@@ -1046,18 +1129,29 @@ function PackageCard({
           </div>
           <div className="grid gap-2">
             <Label>Price (USD)</Label>
-            <Input
-              type="number"
-              value={p.price}
-              onChange={(ev) => update(p.id, { price: Number(ev.target.value) })}
-            />
+            <div className="relative">
+              <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm font-medium">
+                $
+              </span>
+              <Input
+                type="number"
+                value={p.price}
+                onChange={(ev) => update(p.id, { price: Number(ev.target.value) })}
+                className="pl-7"
+              />
+            </div>
           </div>
           <div className="grid gap-2">
-            <Label>Lessons</Label>
+            <Label>Lessons (optional)</Label>
             <Input
               type="number"
-              value={p.lessons}
-              onChange={(ev) => update(p.id, { lessons: Number(ev.target.value) })}
+              placeholder="Leave blank if not applicable"
+              value={p.lessons ?? ""}
+              onChange={(ev) =>
+                update(p.id, {
+                  lessons: ev.target.value === "" ? undefined : Number(ev.target.value),
+                })
+              }
             />
           </div>
           <div className="grid gap-2 sm:col-span-2">
@@ -1075,25 +1169,54 @@ function PackageCard({
               type automatically. Leave on "Any" for a general bundle.
             </p>
           </div>
-          <div className="grid gap-2">
-            <Label>Included (comma separated)</Label>
-            <Input
-              value={p.includes.join(", ")}
-              onChange={(ev) =>
-                update(p.id, {
-                  includes: ev.target.value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
+          <div className="grid gap-2 sm:col-span-2">
+            <Label>What's included (one per line)</Label>
+            <IncludesEditor value={p.includes} onChange={(includes) => update(p.id, { includes })} />
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label>Description</Label>
             <Textarea
               value={p.description}
               onChange={(ev) => update(p.id, { description: ev.target.value })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-lg border p-3 sm:col-span-2">
+            <div>
+              <Label className="text-sm">Most popular</Label>
+              <p className="text-muted-foreground text-xs">
+                Highlights this package and badges it as "Most popular" wherever packages are shown.
+                Only mark one package at a time.
+              </p>
+            </div>
+            <Switch
+              checked={!!p.featured}
+              onCheckedChange={(checked) => update(p.id, { featured: checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-lg border p-3 sm:col-span-2">
+            <div>
+              <Label className="text-sm">Show on homepage</Label>
+              <p className="text-muted-foreground text-xs">
+                Appears in the packages preview on the homepage, before someone clicks "See all
+                packages".
+              </p>
+            </div>
+            <Switch
+              checked={p.showOnHome !== false}
+              onCheckedChange={(checked) => update(p.id, { showOnHome: checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-lg border p-3 sm:col-span-2">
+            <div>
+              <Label className="text-sm">Combo package</Label>
+              <p className="text-muted-foreground text-xs">
+                For bundles that combine lesson types or multiple packages, gives it its own
+                distinct card style wherever packages are shown.
+              </p>
+            </div>
+            <Switch
+              checked={!!p.isCombo}
+              onCheckedChange={(checked) => update(p.id, { isCombo: checked })}
             />
           </div>
           <div className="flex gap-2 sm:col-span-2">
@@ -1131,7 +1254,7 @@ function InstructorsPanel() {
         toast.success(`Moved ${migrated} instructor${migrated === 1 ? "" : "s"} to the database.`);
         window.location.reload();
       } else {
-        toast.info("Nothing to move — instructors are already in the database.");
+        toast.info("Nothing to move, instructors are already in the database.");
         setHasLegacy(false);
       }
     } catch (err) {
@@ -1287,7 +1410,7 @@ function InstructorCard({
             <Input
               value={ins.phone ?? ""}
               onChange={(e) => update(ins.id, { phone: e.target.value })}
-              placeholder="e.g. 077XXXXXXX — needed for the Share button below"
+              placeholder="e.g. 077XXXXXXX, needed for the Share button below"
             />
           </div>
           <InstructorPinField
@@ -1424,10 +1547,10 @@ function InstructorPinField({
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(shareMessage);
-                toast.success("Message copied — paste it wherever you're messaging them");
+                toast.success("Message copied, paste it wherever you're messaging them");
               } catch {
                 toast.error(
-                  "Could not copy — add a WhatsApp number above for a one-tap send instead",
+                  "Could not copy, add a WhatsApp number above for a one-tap send instead",
                 );
               }
             }}
@@ -1438,7 +1561,7 @@ function InstructorPinField({
         ))}
       <p className="text-muted-foreground text-xs">
         Share this with the instructor along with the /my-lessons link so they can check their own
-        schedule. For security, saved PINs can't be viewed again here — only changed or cleared.
+        schedule. For security, saved PINs can't be viewed again here, only changed or cleared.
       </p>
     </div>
   );
@@ -1972,7 +2095,7 @@ function SettingsPanel() {
           <Textarea value={settings.tagline} onChange={(e) => save({ tagline: e.target.value })} />
         </div>
         <div className="grid gap-2 sm:col-span-2">
-          <Label>WhatsApp message — general enquiry links</Label>
+          <Label>WhatsApp message: general enquiry links</Label>
           <Textarea
             rows={2}
             value={settings.waGeneralTemplate}
@@ -1980,7 +2103,7 @@ function SettingsPanel() {
           />
         </div>
         <div className="grid gap-2 sm:col-span-2">
-          <Label>WhatsApp message — booking confirmation</Label>
+          <Label>WhatsApp message: booking confirmation</Label>
           <Textarea
             rows={9}
             className="font-mono text-xs"
@@ -1988,7 +2111,7 @@ function SettingsPanel() {
             onChange={(e) => save({ waBookingTemplate: e.target.value })}
           />
           <p className="text-muted-foreground text-xs">
-            Tokens: {BOOKING_TEMPLATE_TOKENS.join(" ")} — learners can review and edit the message
+            Tokens: {BOOKING_TEMPLATE_TOKENS.join(" ")}, learners can review and edit the message
             before sending.
           </p>
           <div className="bg-secondary/60 rounded-lg border p-3">
@@ -2016,7 +2139,7 @@ function SettingsPanel() {
         </div>
 
         <div className="grid gap-2 sm:col-span-2">
-          <Label>WhatsApp message — payment submitted</Label>
+          <Label>WhatsApp message: payment submitted</Label>
           <Textarea
             rows={6}
             className="font-mono text-xs"
@@ -2029,7 +2152,7 @@ function SettingsPanel() {
         </div>
 
         <div className="grid gap-2 sm:col-span-2">
-          <Label>WhatsApp message — welcome (sent on enrolment)</Label>
+          <Label>WhatsApp message: welcome (sent on enrolment)</Label>
           <Textarea
             rows={7}
             className="font-mono text-xs"
@@ -2055,7 +2178,7 @@ function SettingsPanel() {
         </div>
 
         <div className="grid gap-2 sm:col-span-2">
-          <Label>WhatsApp message — lesson booked, to instructor</Label>
+          <Label>WhatsApp message: lesson booked, to instructor</Label>
           <Textarea
             rows={5}
             className="font-mono text-xs"
@@ -2068,7 +2191,7 @@ function SettingsPanel() {
         </div>
 
         <div className="grid gap-2 sm:col-span-2">
-          <Label>WhatsApp message — lesson booked, to student</Label>
+          <Label>WhatsApp message: lesson booked, to student</Label>
           <Textarea
             rows={5}
             className="font-mono text-xs"
@@ -2081,7 +2204,7 @@ function SettingsPanel() {
         </div>
 
         <div className="grid gap-2 sm:col-span-2">
-          <Label>WhatsApp message — enquiry follow-up</Label>
+          <Label>WhatsApp message: enquiry follow-up</Label>
           <Textarea
             rows={6}
             className="font-mono text-xs"
@@ -2089,13 +2212,13 @@ function SettingsPanel() {
             onChange={(e) => save({ waEnquiryFollowUpTemplate: e.target.value })}
           />
           <p className="text-muted-foreground text-xs">
-            Tokens: {ENQUIRY_FOLLOWUP_TEMPLATE_TOKENS.join(" ")} — used by "Send message" on the
+            Tokens: {ENQUIRY_FOLLOWUP_TEMPLATE_TOKENS.join(" ")}, used by "Send message" on the
             Enquiries tab.
           </p>
         </div>
 
         <div className="grid gap-2 sm:col-span-2">
-          <Label>WhatsApp message — weekly plan (student &amp; instructor)</Label>
+          <Label>WhatsApp message: weekly plan (student &amp; instructor)</Label>
           <Textarea
             rows={6}
             className="font-mono text-xs"
@@ -2103,7 +2226,7 @@ function SettingsPanel() {
             onChange={(e) => save({ waWeeklyPlanTemplate: e.target.value })}
           />
           <p className="text-muted-foreground text-xs">
-            Tokens: {WEEKLY_PLAN_TEMPLATE_TOKENS.join(" ")} — {"{schedule}"} is the full list of
+            Tokens: {WEEKLY_PLAN_TEMPLATE_TOKENS.join(" ")}, {"{schedule}"} is the full list of
             days/times, filled in automatically.
           </p>
         </div>
@@ -2278,7 +2401,7 @@ function AboutPanel() {
 
       {sections.length === 0 && (
         <p className="text-muted-foreground text-sm">
-          No custom sections yet — they'll appear on the About page after "Why Choose Us".
+          No custom sections yet, they'll appear on the About page after "Why Choose Us".
         </p>
       )}
 
@@ -2457,7 +2580,7 @@ function TeamPanel() {
       </Button>
       {items.length === 0 && (
         <p className="text-muted-foreground text-sm">
-          No team members yet — the "Meet the Team" section stays hidden until you add one.
+          No team members yet, the "Meet the Team" section stays hidden until you add one.
         </p>
       )}
       {items.length > 1 && (
@@ -2608,7 +2731,7 @@ function studentRow(s: Student, packages: Package[], payments: Payment[]): Row {
   return {
     Name: s.name,
     Phone: s.phone,
-    Package: packages.find((p) => p.id === s.packageId)?.name ?? "—",
+    Package: packages.find((p) => p.id === s.packageId)?.name ?? "-",
     "Enrolled on": new Date(s.enrolledAt).toLocaleDateString(),
     Status: s.status === "active" ? "Active" : "Completed",
     Payments: mine.length,
@@ -2790,7 +2913,7 @@ function BulkImportStudents({
       }
       setRows(parseStudentCsvRows(parsed, packages));
     } catch {
-      toast.error("Could not read that file — make sure it's a CSV.");
+      toast.error("Could not read that file, make sure it's a CSV.");
     }
   }
 
@@ -2811,7 +2934,7 @@ function BulkImportStudents({
         <DialogHeader>
           <DialogTitle>Bulk import students</DialogTitle>
           <DialogDescription>
-            Upload a CSV file with one row per student — handy for bringing in a class list from
+            Upload a CSV file with one row per student, handy for bringing in a class list from
             Excel or Google Sheets all at once instead of adding each one by hand.
           </DialogDescription>
         </DialogHeader>
@@ -2879,9 +3002,9 @@ function BulkImportStudents({
                   <tbody>
                     {rows.map((r, i) => (
                       <tr key={i} className={cn("border-t", r.problem && "bg-destructive/5")}>
-                        <td className="p-2">{r.name || "—"}</td>
-                        <td className="p-2 font-mono">{r.phone || "—"}</td>
-                        <td className="p-2">{r.packageInput || "—"}</td>
+                        <td className="p-2">{r.name || "-"}</td>
+                        <td className="p-2 font-mono">{r.phone || "-"}</td>
+                        <td className="p-2">{r.packageInput || "-"}</td>
                         <td className="p-2">
                           {r.problem ? (
                             <span className="text-destructive">{r.problem}</span>
@@ -3199,7 +3322,7 @@ function PaymentCard({
   onScheduleNow: (studentId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const pkgName = packages.find((pk) => pk.id === p.packageId)?.name ?? "—";
+  const pkgName = packages.find((pk) => pk.id === p.packageId)?.name ?? "-";
   return (
     <Card className="overflow-hidden py-0 transition-shadow hover:shadow-md">
       <button

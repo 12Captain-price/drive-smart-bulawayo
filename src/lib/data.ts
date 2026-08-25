@@ -69,13 +69,22 @@ export interface Package {
   slug: string;
   name: string;
   price: number;
-  lessons: number;
+  lessons?: number;
   description: string;
   includes: string[];
   /** Which kind of lesson this bundle is for. Undefined/"any" means it can be used for either —
    *  set it to lock a package to provisional or driving lessons and have bookings made against it
    *  default to that type automatically. */
   lessonType?: LessonType;
+  /** Manually mark this as the "Most popular" package — shows a highlighted badge and styling
+   *  wherever packages are listed. Only one package should have this set at a time. */
+  featured?: boolean;
+  /** Whether this package shows in the homepage preview (before someone clicks "See all
+   *  packages"). Defaults to true for existing packages. */
+  showOnHome?: boolean;
+  /** Marks this as a combo/bundle package (e.g. two lesson types combined) — gets its own
+   *  distinct card styling wherever packages are listed. */
+  isCombo?: boolean;
 }
 
 export interface Instructor {
@@ -279,11 +288,11 @@ export const WHATSAPP_LINK = "https://wa.me/263788733625";
 export const defaultSettings: SiteSettings = {
   phone: "078 873 3625",
   whatsapp: "263788733625",
-  address: "10th Ave & Joshua Nkomo St, Bulawayo (Plus code: RHRJ+9F Bulawayo)",
+  address: "11th Ave & Joshua Nkomo St, Bulawayo (Plus code: RHRJ+9F Bulawayo)",
   hours: "Open daily · closes 6pm",
   headline: "Learn to drive with Bulawayo's trusted driving school",
   tagline:
-    "VID-registered instructors, dual-control vehicles and flexible lesson times — right in the centre of town.",
+    "TSCZ-registered instructors, dual-control vehicles and flexible lesson times, right in the centre of town.",
   stats: [
     { value: "500+", label: "Learners Trained" },
     { value: "92%", label: "First-Time Pass Rate" },
@@ -291,7 +300,7 @@ export const defaultSettings: SiteSettings = {
     { value: "7", label: "Days a Week" },
   ],
   trustStrip: [
-    { icon: "shield", text: "VID registered school" },
+    { icon: "shield", text: "TSCZ registered school" },
     { icon: "car", text: "Dual-control vehicles" },
     { icon: "calendar", text: "Open 7 days, closes 6pm" },
   ],
@@ -370,6 +379,7 @@ const defaultPackages: Package[] = [
     lessons: 8,
     description: "Perfect if you have never sat behind the wheel before.",
     includes: ["8 driving lessons", "Highway Code basics", "Dual-control vehicle", "Yard practice"],
+    showOnHome: true,
   },
   {
     id: "pkg-full",
@@ -385,6 +395,8 @@ const defaultPackages: Package[] = [
       "VID test booking help",
       "Mock test",
     ],
+    featured: true,
+    showOnHome: true,
   },
   {
     id: "pkg-refresher",
@@ -394,6 +406,7 @@ const defaultPackages: Package[] = [
     lessons: 5,
     description: "For licenced drivers who need confidence back on the road.",
     includes: ["5 driving lessons", "Parking & reversing drills", "City road confidence"],
+    showOnHome: true,
   },
 ];
 
@@ -455,7 +468,7 @@ const defaultTips: Tip[] = [
   {
     id: "tip1",
     title: "Know your road signs before test day",
-    body: "The VID examiner will ask you to identify signs before you even start the car. Learn the warning (triangle), regulatory (circle) and information (rectangle) groups — knowing the shape families alone gets you most of the way there.",
+    body: "The VID examiner will ask you to identify signs before you even start the car. Learn the warning (triangle), regulatory (circle) and information (rectangle) groups, knowing the shape families alone gets you most of the way there.",
   },
   {
     id: "tip2",
@@ -465,19 +478,19 @@ const defaultTips: Tip[] = [
   {
     id: "tip3",
     title: "Did you know? Mirrors before every move",
-    body: "Mirror, signal, manoeuvre — in that order, every single time. Examiners watch your head movement, so make your mirror checks visible.",
+    body: "Mirror, signal, manoeuvre, in that order, every single time. Examiners watch your head movement, so make your mirror checks visible.",
   },
 ];
 
 export const defaultAboutContent: AboutContent = {
   storyHeading: "Our story",
   storyParagraphs: [
-    "Auto Driving School has been training learner drivers from the corner of 10th Avenue and Joshua Nkomo Street for over a decade. We started with a single dual-control vehicle and a simple idea: nobody learns well when they're being shouted at.",
+    "Auto Driving School has been training learner drivers from the corner of 11th Avenue and Joshua Nkomo Street for over a decade. We started with a single dual-control vehicle and a simple idea: nobody learns well when they're being shouted at.",
     "Today we run lessons seven days a week, from first-time learners who've never touched a clutch to licenced drivers who want their confidence back.",
   ],
   whyCards: [
-    { title: "VID registered", body: "A recognised school, so your hours count." },
-    { title: "Dual-control vehicles", body: "Instructor can step in — safe from lesson one." },
+    { title: "TSCZ registered", body: "A recognised school, so your hours count." },
+    { title: "Dual-control vehicles", body: "Instructor can step in | safe from lesson one." },
     { title: "Experienced instructors", body: "Decades of combined teaching in Bulawayo." },
     { title: "Flexible scheduling", body: "Mornings, afternoons or evenings, 7 days." },
   ],
@@ -581,7 +594,7 @@ function useRemoteKey<T>(key: RemoteKey): T[] {
 function reportRemoteError(action: string, key: string, err: unknown) {
   const detail = errorMessage(err, "Check your connection and try again.");
   console.error(`Supabase ${action} failed for ${key}:`, err);
-  toast.error(`Could not ${action} — ${detail}`, { duration: Infinity });
+  toast.error(`Could not ${action}, ${detail}`, { duration: Infinity });
 }
 
 function ensureRemoteLoaded<T>(
@@ -871,10 +884,13 @@ function packageFromRow(row: any): Package {
     slug: row.slug,
     name: row.name,
     price: row.price,
-    lessons: row.lessons,
+    lessons: row.lessons ?? undefined,
     description: row.description,
     includes: row.includes ?? [],
     lessonType: row.lesson_type ?? undefined,
+    featured: row.featured ?? false,
+    showOnHome: row.show_on_home ?? true,
+    isCombo: row.is_combo ?? false,
   };
 }
 
@@ -883,10 +899,13 @@ function packageToRow(item: Partial<Package>): Record<string, unknown> {
   if (has(item, "slug")) row.slug = item.slug;
   if (has(item, "name")) row.name = item.name;
   if (has(item, "price")) row.price = item.price;
-  if (has(item, "lessons")) row.lessons = item.lessons;
+  if (has(item, "lessons")) row.lessons = item.lessons ?? null;
   if (has(item, "description")) row.description = item.description;
   if (has(item, "includes")) row.includes = item.includes;
   if (has(item, "lessonType")) row.lesson_type = item.lessonType || null;
+  if (has(item, "featured")) row.featured = item.featured ?? false;
+  if (has(item, "showOnHome")) row.show_on_home = item.showOnHome ?? true;
+  if (has(item, "isCombo")) row.is_combo = item.isCombo ?? false;
   return row;
 }
 
@@ -2072,6 +2091,7 @@ export const PAYMENT_TEMPLATE_TOKENS = [
   "{package}",
   "{amount}",
   "{reference}",
+  "{note}",
 ];
 
 /** Tokens available inside the welcome WhatsApp template, sent on enrolment. */
@@ -2135,7 +2155,7 @@ export function formatWeeklySchedule(
       const d = new Date(l.startsAt);
       const day = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
       const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-      return `${day} — ${time} (${l.minutes}min, ${l.lessonType})`;
+      return `${day}, ${time} (${l.minutes}min, ${l.lessonType})`;
     })
     .join("\n");
 }
@@ -2471,7 +2491,7 @@ export function testReadyReason(t: Test): string | null {
     return null;
   }
   if (!t.paper) return "Upload a test paper";
-  if (!t.answerKey && !(t.answerKeyText ?? "").trim()) return "Add an answer key — upload a PDF or type the answers";
+  if (!t.answerKey && !(t.answerKeyText ?? "").trim()) return "Add an answer key, upload a PDF or type the answers";
   return null;
 }
 

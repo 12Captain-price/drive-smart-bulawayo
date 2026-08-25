@@ -49,11 +49,11 @@ export function ImageUploader({
     const valid: File[] = [];
     for (const file of files) {
       if (!accepted.includes(file.type)) {
-        toast.error(`${file.name} rejected — use JPG, PNG${allowPdf ? ", WEBP or PDF" : " or WEBP"}`);
+        toast.error(`${file.name} rejected, use JPG, PNG${allowPdf ? ", WEBP or PDF" : " or WEBP"}`);
         continue;
       }
       if (file.size > MAX_UPLOAD_BYTES) {
-        toast.error(`${file.name} is too large — max 2MB`);
+        toast.error(`${file.name} is too large, max 2MB`);
         continue;
       }
       valid.push(file);
@@ -78,7 +78,7 @@ export function ImageUploader({
           : `${results[0].name} uploaded`,
       );
     } catch (err) {
-      toast.error(`Upload failed — ${errorMessage(err, "please try again")}`, { duration: Infinity });
+      toast.error(`Upload failed, ${errorMessage(err, "please try again")}`, { duration: Infinity });
     } finally {
       setBusy(false);
       setCurrent("");

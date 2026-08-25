@@ -219,7 +219,7 @@ export function OverviewPanel() {
         <Card className="lg:col-span-3">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <p className="label-mono text-muted-foreground">Revenue — last 6 months</p>
+              <p className="label-mono text-muted-foreground">Revenue, last 6 months</p>
               <Banknote className="text-muted-foreground size-4" />
             </div>
             <div className="mt-2 h-56">
@@ -335,7 +335,7 @@ export function OverviewPanel() {
             <p className="label-mono text-muted-foreground">Recent activity</p>
             {recentActivity.length === 0 ? (
               <p className="text-muted-foreground mt-4 text-sm">
-                Nothing yet — new enquiries and payments will show up here.
+                Nothing yet, new enquiries and payments will show up here.
               </p>
             ) : (
               <ul className="mt-4 space-y-3.5">

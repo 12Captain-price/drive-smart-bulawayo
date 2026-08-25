@@ -28,7 +28,7 @@ export const Route = createFileRoute("/my-lessons")({
   component: MyLessons,
   head: () => ({
     meta: [
-      { title: "My Lessons — Auto Driving School" },
+      { title: "My Lessons | Auto Driving School" },
       {
         name: "description",
         content: "Students and instructors: check your upcoming Auto Driving School lessons.",
@@ -463,7 +463,7 @@ function MyLessons() {
       <SectionHeading
         eyebrow="Your schedule"
         title="My lessons"
-        subtitle="Check your upcoming lessons — no account needed."
+        subtitle="Check your upcoming lessons, no account needed."
       />
       <div className="mt-8">
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -486,7 +486,7 @@ function MyLessons() {
       </div>
       <p className="text-muted-foreground mt-10 flex items-start gap-2 text-xs">
         <CalendarCheck2 className="mt-0.5 size-3.5 shrink-0" />
-        Your name and phone number are only used to match your record — this page never shows anyone else's
+        Your name and phone number are only used to match your record, this page never shows anyone else's
         lessons.
       </p>
     </Section>

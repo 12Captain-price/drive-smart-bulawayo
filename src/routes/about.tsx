@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BadgeCheck, CalendarClock, Car, GraduationCap, ShieldCheck, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BannerImage } from "@/components/site/BannerImage";
 import { CtaBand, FramedPhoto, ReviewForm, Section, SectionHeading } from "@/components/site/blocks";
@@ -8,7 +9,6 @@ import {
   publishedPhotos,
   useAboutContent,
   useAboutSections,
-  useInstructors,
   usePhotos,
   useTeam,
 } from "@/lib/data";
@@ -20,16 +20,16 @@ export const Route = createFileRoute("/about")({
   loader: () => fetchAboutData(),
   head: () => ({
     meta: [
-      { title: "About Auto Driving School — Bulawayo" },
+      { title: "About Auto Driving School | Bulawayo" },
       {
         name: "description",
         content:
-          "Meet Auto Driving School: a VID-registered driving school in central Bulawayo with experienced instructors and dual-control vehicles.",
+          "Meet Auto Driving School: a TSCZ-registered driving school in central Bulawayo with experienced instructors and dual-control vehicles.",
       },
-      { property: "og:title", content: "About Auto Driving School — Bulawayo" },
+      { property: "og:title", content: "About Auto Driving School | Bulawayo" },
       {
         property: "og:description",
-        content: "Our story, our instructors and why learners in Bulawayo choose us.",
+        content: "Our story, our team and why learners in Bulawayo choose us.",
       },
       { property: "og:url", content: "/about" },
     ],
@@ -41,7 +41,6 @@ const whyIcons = [ShieldCheck, Car, GraduationCap, CalendarClock];
 
 function About() {
   const { items: photos } = usePhotos();
-  const { items: instructors } = useInstructors();
   const { content } = useAboutContent();
   const { items: customSections } = useAboutSections();
   const { items: team } = useTeam();
@@ -99,8 +98,8 @@ function About() {
           <div>
             <h3 className="text-xl font-semibold">Test-ready, not just road-ready</h3>
             <p className="text-muted-foreground mt-3 text-sm">
-              Our yard training covers everything the VID examiner looks for — hill starts, parallel
-              parking, road signs and observation — before you ever book a test date. We'll tell you
+              Our yard training covers everything the VID examiner looks for, hill starts, parallel
+              parking, road signs and observation, before you ever book a test date. We'll tell you
               honestly when you're ready.
             </p>
           </div>
@@ -194,35 +193,6 @@ function About() {
 
 
       <Section className="pt-0">
-        <SectionHeading eyebrow="The team" title="Our instructors" />
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {instructors.map((ins) => (
-            <Link
-              key={ins.id}
-              to="/instructors/$slug"
-              params={{ slug: ins.slug }}
-              className="group block"
-            >
-              <Card className="h-full overflow-hidden transition-shadow group-hover:shadow-lg">
-                <FramedPhoto
-                  src={ins.photo}
-                  alt={ins.name}
-                  className="aspect-[4/3] w-full"
-                  imgClassName="transition-transform group-hover:scale-105"
-                  fallback={<GraduationCap className="size-10" />}
-                />
-                <CardContent className="pt-5">
-                  <h3 className="font-semibold">{ins.name}</h3>
-                  <p className="label-mono text-muted-foreground mt-1">{ins.years} yrs experience</p>
-                  <p className="text-muted-foreground mt-2 text-sm">{ins.languages}</p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </Section>
-
-      <Section className="pt-0">
         <SectionHeading eyebrow="Around our school" title="The yard, the cars, the classroom" />
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {around.slice(0, 8).map((p, i) => (
@@ -234,12 +204,17 @@ function About() {
             />
           ))}
         </div>
+        <div className="mt-6 text-center">
+          <Button asChild variant="outline">
+            <Link to="/gallery">View full gallery</Link>
+          </Button>
+        </div>
       </Section>
 
       <Section className="pt-0">
         <div className="bg-secondary/60 flex flex-col items-center gap-3 rounded-xl border p-6 text-center">
           <BadgeCheck className="text-success size-8" />
-          <h3 className="text-lg font-semibold">Registered with the VID</h3>
+          <h3 className="text-lg font-semibold">Registered with the TSCZ</h3>
           <p className="text-muted-foreground max-w-lg text-sm">
             Auto Driving School is a Vehicle Inspectorate Department registered driving school, so your
             training is recognised for licensing.

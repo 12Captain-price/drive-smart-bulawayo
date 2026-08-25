@@ -13,7 +13,7 @@ export function Footer() {
         <div className="sm:col-span-2 lg:col-span-1">
           <Logo size={44} />
           <p className="text-muted-foreground mt-4 text-sm">
-            VID-registered driving school in the heart of Bulawayo. Dual-control vehicles, patient
+            TSCZ-registered driving school in the heart of Bulawayo. Dual-control vehicles, patient
             instructors, flexible times.
           </p>
         </div>
@@ -59,7 +59,6 @@ export function Footer() {
             {[
               { to: "/about", label: "About" },
               { to: "/packages", label: "Packages & Pricing" },
-              { to: "/instructors", label: "Instructors" },
               { to: "/gallery", label: "Gallery" },
               { to: "/tips", label: "Driving Tips" },
               { to: "/faq", label: "FAQ" },

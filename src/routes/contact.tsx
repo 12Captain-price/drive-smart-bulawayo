@@ -47,7 +47,7 @@ export const Route = createFileRoute("/contact")({
   loader: () => fetchContactData(),
   head: () => ({
     meta: [
-      { title: "Book a Driving Lesson in Bulawayo — Auto Driving School" },
+      { title: "Book a Driving Lesson in Bulawayo | Auto Driving School" },
       {
         name: "description",
         content:
@@ -256,7 +256,7 @@ function Contact() {
         ref,
         name: name.trim(),
         phone: phone.trim(),
-        package: pkg ? `${pkg.name} ($${pkg.price})` : "—",
+        package: pkg ? `${pkg.name} ($${pkg.price})` : "-",
         days: days.join(", ") || "any day",
         times: times.join(", ") || "any time",
         slots: slots.join(", ") || "flexible",
@@ -265,7 +265,7 @@ function Contact() {
       setReference(ref);
       setReceipt(
         [
-          "AUTO DRIVING SCHOOL — BOOKING RECEIPT",
+          "AUTO DRIVING SCHOOL: BOOKING RECEIPT",
           "======================================",
           `Reference:      ${ref}`,
           `Issued:         ${created.toLocaleString()}`,
@@ -281,7 +281,7 @@ function Contact() {
           `Contact:        ${settings.phone} · ${settings.address}`,
         ].join("\n"),
       );
-      toast.success("Enquiry saved — we'll be in touch");
+      toast.success("Enquiry saved, we'll be in touch");
       setDone(name.trim());
     } catch (err) {
       toast.error(errorMessage(err, "Could not save your enquiry"), {
@@ -399,9 +399,11 @@ function Contact() {
                                 <span className="font-semibold">{p.name}</span>
                                 <span className="text-primary font-mono font-bold">${p.price}</span>
                               </div>
-                              <span className="label-mono text-muted-foreground mt-1 block">
-                                {p.lessons} lessons
-                              </span>
+                              {!!p.lessons && (
+                                <span className="label-mono text-muted-foreground mt-1 block">
+                                  {p.lessons} lessons
+                                </span>
+                              )}
                             </button>
                           ))}
                         </div>
@@ -460,7 +462,7 @@ function Contact() {
                       <div>
                         <h2 className="text-lg font-semibold">Preferred time of day</h2>
                         <p className="text-muted-foreground mt-1 text-sm">
-                          Morning, afternoon or evening — pick as many as suit you.
+                          Morning, afternoon or evening, pick as many as suit you.
                         </p>
                         <div className="mt-4 flex flex-wrap gap-2">
                           {TIMES.map((t) => (
@@ -497,7 +499,7 @@ function Contact() {
                         </div>
                         {clashes.length > 0 && (
                           <p className="text-destructive mt-3 text-xs">
-                            Already booked: {clashes.join(", ")} — please choose another time.
+                            Already booked: {clashes.join(", ")}, please choose another time.
                           </p>
                         )}
                       </div>
@@ -512,13 +514,13 @@ function Contact() {
 
                         <div className="mt-4 divide-y rounded-lg border">
                           <PreviewRow label="Package" onEdit={() => setStep(0)}>
-                            {selectedPackage ? `${selectedPackage.name} · $${selectedPackage.price}` : "—"}
+                            {selectedPackage ? `${selectedPackage.name} · $${selectedPackage.price}` : "-"}
                           </PreviewRow>
                           <PreviewRow label="Name" onEdit={() => setStep(1)}>
-                            {name.trim() || "—"}
+                            {name.trim() || "-"}
                           </PreviewRow>
                           <PreviewRow label="Phone" onEdit={() => setStep(1)}>
-                            {phone.trim() || "—"}
+                            {phone.trim() || "-"}
                           </PreviewRow>
                           <PreviewRow label="Days" onEdit={() => setStep(2)}>
                             {days.length ? days.join(", ") : "Any day"}
@@ -533,7 +535,7 @@ function Contact() {
                       </div>
                     )}
 
-                    {/* honeypot — hidden from real users */}
+                    {/* honeypot, hidden from real users */}
                     <input
                       type="text"
                       tabIndex={-1}

@@ -261,7 +261,7 @@ export function SchedulePanel({
 
       {instructors.length === 0 && (
         <p className="text-muted-foreground flex items-center gap-2 text-sm">
-          <AlertCircle className="size-4" /> Add instructors on the Instructors tab first — you'll
+          <AlertCircle className="size-4" /> Add instructors on the Instructors tab first, you'll
           need to pick one for each lesson.
         </p>
       )}
@@ -361,7 +361,7 @@ function LessonRecordsDialog({
     return c;
   }, [filtered]);
 
-  const scopeTitle = selectedStudent ? `Lesson Records — ${selectedStudent.name}` : "Lesson Records — All Students";
+  const scopeTitle = selectedStudent ? `Lesson Records: ${selectedStudent.name}` : "Lesson Records: All Students";
   const scopeSubtitle = `${filtered.length} lesson${filtered.length === 1 ? "" : "s"}${
     statusFilter === "all" ? "" : ` · ${LESSON_STATUSES.find((s) => s.value === statusFilter)?.label}`
   } · generated ${new Date().toLocaleDateString()}`;
@@ -390,7 +390,7 @@ function LessonRecordsDialog({
         <DialogHeader>
           <DialogTitle>Lesson records</DialogTitle>
           <DialogDescription>
-            View every scheduled lesson for one student, or the whole school — then export the
+            View every scheduled lesson for one student, or the whole school, then export the
             view as a spreadsheet or a printable PDF report.
           </DialogDescription>
         </DialogHeader>
@@ -916,7 +916,7 @@ function AddLessonDialog({
               <option value="">Select a student…</option>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} — {s.phone}
+                  {s.name}, {s.phone}
                 </option>
               ))}
             </select>
@@ -951,7 +951,7 @@ function AddLessonDialog({
               packages.find((p) => p.id === students.find((s) => s.id === studentId)?.packageId)
                 ?.lessonType && (
                 <p className="text-muted-foreground text-xs">
-                  Set from this student's package — change it above if this booking is different.
+                  Set from this student's package, change it above if this booking is different.
                 </p>
               )}
           </div>
@@ -1097,7 +1097,7 @@ function WeeklyScheduleDialog({
       });
       if (conflict) {
         const other = students.find((s) => s.id === conflict.studentId)?.name ?? "another student";
-        toast.error(`${d.label} ${d.time} clashes with ${other}'s lesson — adjust and try again.`);
+        toast.error(`${d.label} ${d.time} clashes with ${other}'s lesson, adjust and try again.`);
         return;
       }
 
@@ -1161,7 +1161,7 @@ function WeeklyScheduleDialog({
             <DialogHeader>
               <DialogTitle>Schedule a week of lessons</DialogTitle>
               <DialogDescription>
-                Pick a student, instructor, and one or more days — all lessons are created at once,
+                Pick a student, instructor, and one or more days, all lessons are created at once,
                 then you can forward the plan to both of them on WhatsApp.
               </DialogDescription>
             </DialogHeader>
@@ -1176,7 +1176,7 @@ function WeeklyScheduleDialog({
                   <option value="">Select a student…</option>
                   {students.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} — {s.phone}
+                      {s.name}, {s.phone}
                     </option>
                   ))}
                 </select>
@@ -1451,7 +1451,7 @@ function BulkImportLessons({
       }
       setRows(parseLessonCsvRows(parsed, students, instructors));
     } catch {
-      toast.error("Could not read that file — make sure it's a CSV.");
+      toast.error("Could not read that file, make sure it's a CSV.");
     }
   }
 
@@ -1472,7 +1472,7 @@ function BulkImportLessons({
         <DialogHeader>
           <DialogTitle>Bulk import schedule</DialogTitle>
           <DialogDescription>
-            Upload the school's existing Excel schedule as a CSV — one row per lesson — instead of
+            Upload the school's existing Excel schedule as a CSV, one row per lesson, instead of
             re-entering it by hand. Student and instructor names must match what's already in the
             app exactly.
           </DialogDescription>
@@ -1543,12 +1543,12 @@ function BulkImportLessons({
                   <tbody>
                     {checked.map((r, i) => (
                       <tr key={i} className={cn("border-t", r.problem && "bg-destructive/5")}>
-                        <td className="p-2">{r.studentInput || "—"}</td>
-                        <td className="p-2">{r.instructorInput || "—"}</td>
+                        <td className="p-2">{r.studentInput || "-"}</td>
+                        <td className="p-2">{r.instructorInput || "-"}</td>
                         <td className="p-2">
                           {r.startsAt
                             ? `${new Date(r.startsAt).toLocaleDateString()} ${fmtTime(r.startsAt)}`
-                            : "—"}
+                            : "-"}
                         </td>
                         <td className="p-2">
                           {r.problem ? (

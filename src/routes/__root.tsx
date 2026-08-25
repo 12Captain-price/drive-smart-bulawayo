@@ -78,11 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Auto Driving School — Driving Lessons in Bulawayo" },
+      { title: "Auto Driving School | Driving Lessons in Bulawayo" },
       {
         name: "description",
         content:
-          "Learn to drive in Bulawayo with Auto Driving School: VID-registered instructors, dual-control cars, beginner, full course and refresher packages.",
+          "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages.",
       },
       { name: "robots", content: "index, follow" },
       { name: "author", content: "Auto Driving School" },
@@ -90,10 +90,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "theme-color", content: "#12256b" },
-      { property: "og:title", content: "Auto Driving School — Driving Lessons in Bulawayo" },
-      { name: "twitter:title", content: "Auto Driving School — Driving Lessons in Bulawayo" },
-      { property: "og:description", content: "Learn to drive in Bulawayo with Auto Driving School: VID-registered instructors, dual-control cars, beginner, full course and refresher packages." },
-      { name: "twitter:description", content: "Learn to drive in Bulawayo with Auto Driving School: VID-registered instructors, dual-control cars, beginner, full course and refresher packages." },
+      { property: "og:title", content: "Auto Driving School | Driving Lessons in Bulawayo" },
+      { name: "twitter:title", content: "Auto Driving School | Driving Lessons in Bulawayo" },
+      { property: "og:description", content: "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages." },
+      { name: "twitter:description", content: "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7cc5ea2d-972a-40b7-9535-916a99bea3f2/id-preview-5c4a5017--c52d3735-1de2-48c6-8736-887b32e47e4b.lovable.app-1785139368715.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7cc5ea2d-972a-40b7-9535-916a99bea3f2/id-preview-5c4a5017--c52d3735-1de2-48c6-8736-887b32e47e4b.lovable.app-1785139368715.png" },
     ],

@@ -52,10 +52,10 @@ export const Route = createFileRoute("/test/$token")({
   component: TakeTest,
   head: () => ({
     meta: [
-      { title: "Your Test — Auto Driving School" },
+      { title: "Your Test | Auto Driving School" },
       { name: "description", content: "Write your Auto Driving School test at your own private link." },
       { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: "Your Test — Auto Driving School" },
+      { property: "og:title", content: "Your Test | Auto Driving School" },
       { property: "og:description", content: "Private test link for Auto Driving School learners." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -153,7 +153,7 @@ function TakeTest() {
       } else if (awaySince && awayReason === "tab") {
         setAwaySince(null);
         setAwayReason(null);
-        showBanner("Welcome back — leaving the test screen has been logged and reported to your school.", "warning");
+        showBanner("Welcome back, leaving the test screen has been logged and reported to your school.", "warning");
       }
     };
     const onFsChange = () => {
@@ -165,7 +165,7 @@ function TakeTest() {
       } else if (awaySince && awayReason === "fullscreen") {
         setAwaySince(null);
         setAwayReason(null);
-        showBanner("Welcome back — exiting fullscreen has been logged and reported to your school.", "warning");
+        showBanner("Welcome back, exiting fullscreen has been logged and reported to your school.", "warning");
       }
     };
     const blockAction = (e: Event) => {
@@ -222,7 +222,7 @@ function TakeTest() {
         ...assignment.log,
         {
           at: new Date().toISOString(),
-          text: auto ? (reason ?? "Time ran out — answers sent automatically") : "Answers sent",
+          text: auto ? (reason ?? "Time ran out, answers sent automatically") : "Answers sent",
         },
         ...flags.current.map((f) => ({ at: f.at, text: f.type })),
       ],
@@ -243,8 +243,8 @@ function TakeTest() {
       submit(
         true,
         awayReason === "fullscreen"
-          ? "Auto-submitted — exited fullscreen for too long"
-          : "Auto-submitted — left the test screen for too long",
+          ? "Auto-submitted: exited fullscreen for too long"
+          : "Auto-submitted: left the test screen for too long",
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,7 +257,7 @@ function TakeTest() {
     for (const mark of TIME_WARNINGS) {
       if (seconds === mark && !warned.current.has(mark)) {
         warned.current.add(mark);
-        toast.warning(mark >= 60 ? `${mark / 60} minute${mark > 60 ? "s" : ""} left — start wrapping up.` : `${mark} seconds left!`);
+        toast.warning(mark >= 60 ? `${mark / 60} minute${mark > 60 ? "s" : ""} left, start wrapping up.` : `${mark} seconds left!`);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,7 +290,7 @@ function TakeTest() {
             <CheckCircle2 className="text-success size-14" />
             <h1 className="text-xl font-semibold">Your answers have been sent</h1>
             <p className="text-muted-foreground text-sm">
-              Thanks {student?.name ?? ""} — the school will mark your test and send your result on WhatsApp.
+              Thanks {student?.name ?? ""}, the school will mark your test and send your result on WhatsApp.
             </p>
           </CardContent>
         </Card>
@@ -323,7 +323,7 @@ function TakeTest() {
       },
       {
         icon: ListChecks,
-        text: "This link and access code each work once only — you can't restart once you begin.",
+        text: "This link and access code each work once only, you can't restart once you begin.",
       },
     ];
     return (
@@ -376,7 +376,7 @@ function TakeTest() {
               <h1 className="mt-2 text-2xl font-bold">{test.title}</h1>
               <p className="text-muted-foreground mt-2 text-sm">
                 You have {test.minutes + assignment.extensionMinutes} minutes. Once you start, the clock keeps
-                running — so find a quiet spot first.
+                running, so find a quiet spot first.
               </p>
             </div>
             <div className="grid gap-2">

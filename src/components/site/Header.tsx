@@ -21,7 +21,7 @@ const primaryNav = [
   { to: "/", label: "Home" },
   { to: "/about", label: "About" },
   { to: "/packages", label: "Packages" },
-  { to: "/instructors", label: "Instructors" },
+  { to: "/gallery", label: "Gallery" },
   { to: "/contact", label: "Contact" },
 ];
 
@@ -36,7 +36,6 @@ const utilityNav = [
  *  main bar doesn't outgrow its own width and wrap. Still listed flat in
  *  the mobile sheet below, where vertical space isn't a constraint. */
 const resourcesNav = [
-  { to: "/gallery", label: "Gallery" },
   { to: "/tips", label: "Driving Tips" },
   { to: "/faq", label: "FAQ" },
   { to: "/guide", label: "Help" },
@@ -48,7 +47,6 @@ const mobileNav = [
   { to: "/", label: "Home" },
   { to: "/about", label: "About" },
   { to: "/packages", label: "Packages" },
-  { to: "/instructors", label: "Instructors" },
   { to: "/gallery", label: "Gallery" },
   { to: "/tips", label: "Driving Tips" },
   { to: "/faq", label: "FAQ" },

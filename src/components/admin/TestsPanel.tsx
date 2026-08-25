@@ -91,10 +91,10 @@ function copyViaExecCommand(text: string) {
     const ok = document.execCommand("copy");
     document.body.removeChild(el);
     if (ok) toast.success("Link copied");
-    else toast.error("Could not copy — tap the link box and select-all instead");
+    else toast.error("Could not copy, tap the link box and select-all instead");
   } catch (err) {
     console.error("Copy fallback failed:", err);
-    toast.error("Could not copy — tap the link box and select-all instead");
+    toast.error("Could not copy, tap the link box and select-all instead");
   }
 }
 
@@ -468,7 +468,7 @@ function TestEditor({
       // message — this used to fail silently-ish (a toast that's easy to
       // miss) leaving the field looking like nothing was uploaded, with the
       // test just staying "Not finished yet" with no clue why.
-      toast.error(`Could not upload that file — ${errorMessage(err, "check your connection and try again.")}`, {
+      toast.error(`Could not upload that file, ${errorMessage(err, "check your connection and try again.")}`, {
         duration: Infinity,
       });
     } finally {
@@ -701,7 +701,7 @@ function TestEditor({
               )}
             </div>
             <div className="grid gap-2 sm:col-span-2">
-              <Label>Or type the answers (staff only — never shown to students)</Label>
+              <Label>Or type the answers (staff only: never shown to students)</Label>
               <Textarea
                 rows={4}
                 value={test.answerKeyText ?? ""}
@@ -849,7 +849,7 @@ function AssignPanel() {
               onChange={setTestId}
               placeholder="Search tests…"
               options={tests.map((t) => ({ value: t.id, label: t.title }))}
-              emptyText="No tests yet — add one in the Test bank tab."
+              emptyText="No tests yet, add one in the Test bank tab."
             />
           </div>
           <div className="grid gap-2">
@@ -857,7 +857,7 @@ function AssignPanel() {
             <MultiSearchPicker
               values={studentIds}
               onChange={setStudentIds}
-              placeholder="Search students — pick one or several…"
+              placeholder="Search students, pick one or several…"
               options={students.map((s) => ({ value: s.id, label: `${s.name} · ${s.phone}`, hint: s.phone }))}
               emptyText="No students yet."
             />
@@ -992,7 +992,7 @@ function AssignmentCard({
   const message = [
     `Hi ${s?.name ?? ""}, here is your ${t?.title ?? "test"} from Auto Driving School.`,
     `Time allowed: ${(t?.minutes ?? 0) + a.extensionMinutes} minutes.`,
-    `Open this link when you are ready — it only works once:`,
+    `Open this link when you are ready, it only works once:`,
     link,
     `To start, you will type your name, the last 4 digits of your phone number, and this access code: ${a.accessCode}`,
   ].join("\n");
@@ -1115,7 +1115,7 @@ function AssignmentCard({
               <ul className="mt-2 space-y-1">
                 {a.log.map((l, i) => (
                   <li key={i}>
-                    {new Date(l.at).toLocaleString()} — {l.text}
+                    {new Date(l.at).toLocaleString()}, {l.text}
                   </li>
                 ))}
               </ul>
@@ -1174,7 +1174,7 @@ function autoSubmitReason(assignment?: Assignment): string | null {
   const first = assignment?.log[0]?.text;
   if (!first) return null;
   if (first.startsWith("Auto-submitted")) return first;
-  if (first === "Time ran out — answers sent automatically") return first;
+  if (first === "Time ran out, answers sent automatically") return first;
   return null;
 }
 
@@ -1210,7 +1210,7 @@ function GradePanel() {
     <div className="space-y-4">
       <p className="text-sm font-medium">
         {needsGrading === 0 ? (
-          <span className="text-success">All caught up — nothing needs grading.</span>
+          <span className="text-success">All caught up, nothing needs grading.</span>
         ) : (
           <>
             <span className="text-accent">
@@ -1295,7 +1295,7 @@ function SubmissionCard({
     } catch (err) {
       console.error("Auto-match failed:", err);
       toast.error(
-        errorMessage(err, "Couldn't read the answer key — it may be a scanned image rather than text"),
+        errorMessage(err, "Couldn't read the answer key, it may be a scanned image rather than text"),
         { duration: 6000 },
       );
       setPdfMatchState("error");
@@ -1393,7 +1393,7 @@ function SubmissionCard({
                   const right = given === q.correct;
                   return (
                     <li key={q.id} className={right ? "text-success" : "text-destructive"}>
-                      {q.text || "(no question text)"} — {given === undefined ? "not answered" : q.options[given]}
+                      {q.text || "(no question text)"}, {given === undefined ? "not answered" : q.options[given]}
                       {!right && <span className="text-muted-foreground"> (correct: {q.options[q.correct]})</span>}
                     </li>
                   );
@@ -1482,7 +1482,7 @@ function SubmissionCard({
                   {pdfMatchState === "done" ? "Re-check against answer key" : "Auto-match against answer key"}
                 </Button>
                 <span className="text-muted-foreground text-xs">
-                  A suggestion only — read the flagged answers before trusting it.
+                  A suggestion only, read the flagged answers before trusting it.
                 </span>
               </div>
 
@@ -1524,8 +1524,8 @@ function SubmissionCard({
                           key={r.n}
                           className={r.match ? "text-success" : r.close ? "text-accent" : "text-destructive"}
                         >
-                          Q{r.n}: key says "{r.key}" — student wrote "{r.given ?? "(no answer found)"}"
-                          {r.match ? " ✓" : r.close ? " (close — check by eye)" : " ✗"}
+                          Q{r.n}: key says "{r.key}", student wrote "{r.given ?? "(no answer found)"}"
+                          {r.match ? " ✓" : r.close ? " (close, check by eye)" : " ✗"}
                         </li>
                       ))}
                     </ol>
@@ -1560,7 +1560,7 @@ function SubmissionCard({
                   </div>
                   {!sub.answerBreakdown && (
                     <p className="text-muted-foreground text-xs">
-                      Reveals the correct answer for every question — don't share if you reuse this paper for other
+                      Reveals the correct answer for every question, don't share if you reuse this paper for other
                       students.
                     </p>
                   )}
@@ -1591,7 +1591,7 @@ function SubmissionCard({
                 <ul className="mt-2 space-y-1">
                   {sub.flags.map((f, i) => (
                     <li key={i}>
-                      {new Date(f.at).toLocaleString()} — {f.type}
+                      {new Date(f.at).toLocaleString()}, {f.type}
                     </li>
                   ))}
                 </ul>
@@ -1604,7 +1604,7 @@ function SubmissionCard({
               <Label>Final result</Label>
               <Input
                 value={sub.mark ?? (auto ? `${auto.score}/${auto.total}` : "")}
-                placeholder="e.g. 24/25 — Pass"
+                placeholder="e.g. 24/25, Pass"
                 onChange={(e) => update(sub.id, { mark: e.target.value })}
               />
             </div>
@@ -1612,7 +1612,7 @@ function SubmissionCard({
               <Label>Note for the student</Label>
               <Input
                 value={sub.feedback ?? ""}
-                placeholder="e.g. Well done — revise road signs"
+                placeholder="e.g. Well done, revise road signs"
                 onChange={(e) => update(sub.id, { feedback: e.target.value })}
               />
             </div>

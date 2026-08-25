@@ -74,7 +74,7 @@ export function StaffAccountsPanel({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground text-sm max-w-md">
-          Only managers can see this page. Staff without an email sign in with their name instead —
+          Only managers can see this page. Staff without an email sign in with their name instead -
           give them their password directly since they can't reset it by email themselves.
         </p>
         <AddStaffDialog accessToken={accessToken} onCreated={refresh} />
@@ -161,7 +161,7 @@ function StaffRow({
             )}
           </p>
           <p className="text-muted-foreground text-xs">
-            {account.hasRealEmail ? account.email : "No email on file — signs in with their name"}
+            {account.hasRealEmail ? account.email : "No email on file, signs in with their name"}
           </p>
         </div>
 
@@ -249,7 +249,7 @@ function ResetPasswordDialogContent({
         <DialogTitle>Reset {account.displayName}'s password</DialogTitle>
         <DialogDescription>
           {account.hasRealEmail
-            ? "They can also reset this themselves from the sign-in page — this overrides it directly."
+            ? "They can also reset this themselves from the sign-in page, this overrides it directly."
             : "They have no email on file, so this is the only way to set their password. Tell them the new password yourself."}
         </DialogDescription>
       </DialogHeader>
@@ -338,7 +338,7 @@ function AddStaffDialog({ accessToken, onCreated }: { accessToken: string; onCre
         <DialogHeader>
           <DialogTitle>Add a staff account</DialogTitle>
           <DialogDescription>
-            Set an initial password and share it with them directly — they can change it after signing
+            Set an initial password and share it with them directly, they can change it after signing
             in, and reset it themselves later if they have an email on file.
           </DialogDescription>
         </DialogHeader>
@@ -355,7 +355,7 @@ function AddStaffDialog({ accessToken, onCreated }: { accessToken: string; onCre
               value={hasEmail ? "yes" : "no"}
               options={[
                 { value: "yes", label: "Yes" },
-                { value: "no", label: "No — sign in with name" },
+                { value: "no", label: "No, sign in with name" },
               ]}
               onChange={(v) => setHasEmail(v === "yes")}
             />

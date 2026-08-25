@@ -12,13 +12,13 @@ export const Route = createFileRoute("/gallery")({
   loader: () => fetchGalleryData(),
   head: () => ({
     meta: [
-      { title: "Photo Gallery — Auto Driving School Bulawayo" },
+      { title: "Photo Gallery | Auto Driving School Bulawayo" },
       {
         name: "description",
         content:
           "Photos of Auto Driving School in Bulawayo: our vehicles, the practice yard, instructors and learners in training.",
       },
-      { property: "og:title", content: "Photo Gallery — Auto Driving School Bulawayo" },
+      { property: "og:title", content: "Photo Gallery | Auto Driving School Bulawayo" },
       { property: "og:description", content: "See our cars, yard and learners in training." },
       { property: "og:url", content: "/gallery" },
     ],

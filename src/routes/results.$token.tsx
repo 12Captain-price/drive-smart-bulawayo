@@ -9,10 +9,10 @@ export const Route = createFileRoute("/results/$token")({
   component: Results,
   head: () => ({
     meta: [
-      { title: "Your Test Result — Auto Driving School" },
+      { title: "Your Test Result | Auto Driving School" },
       { name: "description", content: "See your Auto Driving School test result at your private results link." },
       { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: "Your Test Result — Auto Driving School" },
+      { property: "og:title", content: "Your Test Result | Auto Driving School" },
       { property: "og:description", content: "Private test result page for Auto Driving School learners." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -91,10 +91,10 @@ function Results() {
                   <li key={r.n}>
                     <span className="font-medium">Q{r.n}.</span>{" "}
                     {r.match ? (
-                      <span className="text-success">Correct — you wrote "{r.given}"</span>
+                      <span className="text-success">Correct, you wrote "{r.given}"</span>
                     ) : (
                       <span className="text-destructive">
-                        {r.given ? `You wrote "${r.given}"` : "No answer found"} — correct answer: {r.key}
+                        {r.given ? `You wrote "${r.given}"` : "No answer found"}, correct answer: {r.key}
                       </span>
                     )}
                   </li>

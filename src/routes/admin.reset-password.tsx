@@ -13,7 +13,7 @@ export const Route = createFileRoute("/admin/reset-password")({
   component: ResetPassword,
   head: () => ({
     meta: [
-      { title: "Reset password — Auto Driving School" },
+      { title: "Reset password | Auto Driving School" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -105,7 +105,7 @@ function ResetPassword() {
               </Button>
             </div>
           ) : done ? (
-            <p className="text-center text-sm">Password updated — taking you to the admin area…</p>
+            <p className="text-center text-sm">Password updated, taking you to the admin area…</p>
           ) : (
             <form onSubmit={handleSubmit} className="animate-in fade-in-0 space-y-3 duration-200">
               <div className="relative">

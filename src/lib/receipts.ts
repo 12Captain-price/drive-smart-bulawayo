@@ -20,7 +20,7 @@ export function paymentReceiptHtml(p: Payment, pkg?: Package) {
   return detailHtml("Payment receipt", `Received ${date(p.createdAt)}`, [
     ["Name", p.name],
     ["Phone", p.phone],
-    ["Package", pkg?.name ?? "—"],
+    ["Package", pkg?.name ?? "-"],
     ["Amount", money(p.amount)],
     ["EcoCash reference", p.reference],
     ["Status", PAYMENT_LABELS[p.status]],
@@ -40,7 +40,7 @@ export function printStudentProfile(
 ) {
   const rows: Row[] = payments.map((p) => ({
     Date: date(p.createdAt),
-    Package: packages.find((k) => k.id === p.packageId)?.name ?? "—",
+    Package: packages.find((k) => k.id === p.packageId)?.name ?? "-",
     Amount: money(p.amount),
     Reference: p.reference,
     Status: PAYMENT_LABELS[p.status],
@@ -50,10 +50,10 @@ export function printStudentProfile(
     .reduce((sum, p) => sum + p.amount, 0);
 
   printDocument(
-    `Student — ${s.name}`,
+    `Student: ${s.name}`,
     detailHtml("Student record", s.name, [
       ["Phone / WhatsApp", s.phone],
-      ["Package", pkg?.name ?? "—"],
+      ["Package", pkg?.name ?? "-"],
       ["Enrolled on", date(s.enrolledAt)],
       ["Status", s.status === "active" ? "Active" : "Completed"],
       ["Total confirmed payments", money(totalPaid)],
@@ -76,7 +76,7 @@ export function printEnrolmentConfirmation(
   const pairs: [string, string | number][] = [
     ["Student", student.name],
     ["Phone", student.phone],
-    ["Package", pkg ? `${pkg.name} ($${pkg.price})` : "—"],
+    ["Package", pkg ? `${pkg.name} ($${pkg.price})` : "-"],
     ["Enrolment date", date(student.enrolledAt)],
     ["Reference", extra.ref],
   ];
@@ -86,7 +86,7 @@ export function printEnrolmentConfirmation(
   pairs.push(["Payment", "Pay in person at our office, or by EcoCash to the number above."]);
 
   printLetterheadDocument(
-    `Enrolment — ${student.name}`,
+    `Enrolment: ${student.name}`,
     detailHtml(
       "Enrolment Confirmation",
       `Welcome to the school, ${student.name.split(" ")[0]}`,
@@ -185,7 +185,7 @@ export function printLessonsReport(
             <td style="text-transform:capitalize">${escapeHtml(r.type)}</td>
             <td>${escapeHtml(r.duration)}</td>
             <td>${statusPill(r.status)}</td>
-            <td>${escapeHtml(r.notes || "—")}</td>
+            <td>${escapeHtml(r.notes || "-")}</td>
           </tr>`,
         )
         .join("")}</tbody></table>`

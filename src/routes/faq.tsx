@@ -12,7 +12,7 @@ const faqs = [
   {
     category: "Licensing",
     q: "How does the VID licensing process work?",
-    a: "You first write and pass the provisional (learner's) test at the VID, which covers road signs and rules. Once you hold a provisional licence you may take lessons on public roads with a qualified instructor. When you're ready, we help you book the practical VID test — a yard section (hill start, parallel parking, reverse) followed by a road section.",
+    a: "You first write and pass the provisional (learner's) test at the VID, which covers road signs and rules. Once you hold a provisional licence you may take lessons on public roads with a qualified instructor. When you're ready, we help you book the practical VID test, a yard section (hill start, parallel parking, reverse) followed by a road section.",
   },
   {
     category: "Lessons",
@@ -22,7 +22,7 @@ const faqs = [
   {
     category: "Logistics",
     q: "What should I bring to a lesson?",
-    a: "Your provisional licence (or national ID if you're still preparing for it), comfortable flat shoes, and glasses if you wear them for distance. That's it — the vehicle is ours.",
+    a: "Your provisional licence (or national ID if you're still preparing for it), comfortable flat shoes, and glasses if you wear them for distance. That's it, the vehicle is ours.",
   },
   {
     category: "Logistics",
@@ -32,7 +32,7 @@ const faqs = [
   {
     category: "Lessons",
     q: "Do you teach in Ndebele and Shona?",
-    a: "Yes. Our instructors teach in Ndebele, English and Shona — tell us your preference when booking and we'll match you with the right instructor.",
+    a: "Yes. Our instructors teach in Ndebele, English and Shona, tell us your preference when booking and we'll match you with the right instructor.",
   },
   {
     category: "Lessons",
@@ -51,13 +51,13 @@ export const Route = createFileRoute("/faq")({
   component: Faq,
   head: () => ({
     meta: [
-      { title: "Driving School FAQ — VID Test, Lessons & Prices | Bulawayo" },
+      { title: "Driving School FAQ | VID Test, Lessons & Prices | Bulawayo" },
       {
         name: "description",
         content:
           "Answers about the VID licensing process, how many driving lessons you need, what to bring and our cancellation policy in Bulawayo.",
       },
-      { property: "og:title", content: "Driving School FAQ — Bulawayo" },
+      { property: "og:title", content: "Driving School FAQ | Bulawayo" },
       { property: "og:description", content: "Common questions about learning to drive in Bulawayo." },
       { property: "og:url", content: "/faq" },
     ],

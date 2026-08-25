@@ -9,13 +9,13 @@ export const Route = createFileRoute("/tips")({
   loader: () => fetchTipsData(),
   head: () => ({
     meta: [
-      { title: "Driving Tips & VID Test Prep — Bulawayo" },
+      { title: "Driving Tips & VID Test Prep | Bulawayo" },
       {
         name: "description",
         content:
           "Free driving tips and VID test preparation advice from Auto Driving School Bulawayo: road signs, hill starts, observation and good habits.",
       },
-      { property: "og:title", content: "Driving Tips & VID Test Prep — Bulawayo" },
+      { property: "og:title", content: "Driving Tips & VID Test Prep | Bulawayo" },
       { property: "og:description", content: "Test-prep advice and good-driving habits from our instructors." },
       { property: "og:url", content: "/tips" },
     ],
@@ -32,7 +32,7 @@ function Tips() {
         <SectionHeading
           eyebrow="Driving tips"
           title="Did you know?"
-          subtitle="Short lessons and test-prep notes from our instructors — useful whether you're booked with us or not."
+          subtitle="Short lessons and test-prep notes from our instructors, useful whether you're booked with us or not."
         />
         <div className="mt-10 grid gap-5 md:grid-cols-2">
           {items.map((tip) => (

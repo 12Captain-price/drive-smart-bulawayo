@@ -127,9 +127,13 @@ const initiateInput = z
     packageId: z.string().trim().min(1),
     packageName: z.string().trim().min(1).max(120),
     amount: z.number().positive().max(100000),
+    /** What the payer says this specific payment is for, e.g. "Deposit for
+     *  20 lessons". Optional — shown on Paynow's own prompt/dashboard via
+     *  `additionalinfo` so it isn't just buried in our own records. */
+    note: z.string().trim().max(140).optional(),
   })
   .refine((data) => CARD_PAYMENTS_ENABLED || data.method !== "card", {
-    message: "Card payments aren't available yet — please use EcoCash or OneMoney.",
+    message: "Card payments aren't available yet. Please use EcoCash or OneMoney.",
     path: ["method"],
   })
   .refine(
@@ -171,7 +175,7 @@ export const initiatePayment = createServerFn({ method: "POST" })
         poll_url: `mock://${reference}`,
       });
       if (error) return { ok: false, error: "Could not start the payment. Please try again." };
-      return { ok: true, reference, mock: true, instructions: "Test mode — no real charge will happen." };
+      return { ok: true, reference, mock: true, instructions: "Test mode: no real charge will happen." };
     }
 
     const siteUrl = process.env.SITE_URL || "https://example.co.zw";
@@ -179,7 +183,7 @@ export const initiatePayment = createServerFn({ method: "POST" })
       id: creds.id,
       reference,
       amount: data.amount.toFixed(2),
-      additionalinfo: data.packageName,
+      additionalinfo: data.note ? `${data.packageName}: ${data.note}` : data.packageName,
       returnurl: `${siteUrl}/pay?reference=${encodeURIComponent(reference)}`,
       // We poll pollurl for status instead of relying on this being hit, so
       // it just needs to be a valid, reachable URL — see file header.

@@ -81,16 +81,16 @@ export const Route = createFileRoute("/")({
   loader: () => fetchHomeData(),
   head: () => ({
     meta: [
-      { title: "Auto Driving School — Driving Lessons in Bulawayo" },
+      { title: "Auto Driving School: Driving Lessons in Bulawayo" },
       {
         name: "description",
         content:
-          "Learn to drive in Bulawayo with Auto Driving School: VID-registered instructors, dual-control cars, beginner, full course and refresher packages.",
+          "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages.",
       },
-      { property: "og:title", content: "Auto Driving School — Driving Lessons in Bulawayo" },
+      { property: "og:title", content: "Auto Driving School: Driving Lessons in Bulawayo" },
       {
         property: "og:description",
-        content: "Learn to drive in Bulawayo with Auto Driving School: VID-registered instructors, dual-control cars, beginner, full course and refresher packages.",
+        content: "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages.",
       },
       { property: "og:url", content: "/" },
     ],
@@ -204,16 +204,23 @@ function Home() {
       <LaneDivider />
 
       {/* Packages preview */}
-      <Section>
+      <Section id="pricing">
         <SectionHeading
           eyebrow="Pricing"
           title="Lesson packages"
-          subtitle="Bundles work out cheaper than single lessons — and keep you progressing week to week."
+          subtitle="Bundles work out cheaper than single lessons and keep you progressing week to week."
         />
         <div className="mt-10 grid gap-5 md:grid-cols-3">
-          {packages.slice(0, 3).map((p) => (
-            <PackageCard key={p.id} pkg={p} promo={promoForPackage(promos, p.id)} />
-          ))}
+          {packages
+            .filter((p) => p.showOnHome !== false)
+            .map((p) => (
+              <PackageCard
+                key={p.id}
+                pkg={p}
+                promo={promoForPackage(promos, p.id)}
+                popular={!!p.featured}
+              />
+            ))}
         </div>
         <div className="mt-8">
           <Button asChild variant="outline">

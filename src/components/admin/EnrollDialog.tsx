@@ -120,9 +120,9 @@ export function EnrollDialog({
       const message = renderTemplate(settings.waWelcomeTemplate, {
         name: student.name,
         phone: student.phone,
-        package: pkg ? `${pkg.name} ($${pkg.price})` : "—",
-        days: enquiry?.days.join(", ") || "—",
-        times: enquiry?.times.join(", ") || "—",
+        package: pkg ? `${pkg.name} ($${pkg.price})` : "-",
+        days: enquiry?.days.join(", ") || "-",
+        times: enquiry?.times.join(", ") || "-",
         ref,
       });
 
@@ -144,7 +144,7 @@ export function EnrollDialog({
             <DialogHeader>
               <DialogTitle>Enrol student</DialogTitle>
               <DialogDescription>
-                Confirm their details — this creates the student record and generates a branded
+                Confirm their details, this creates the student record and generates a branded
                 enrolment confirmation.
               </DialogDescription>
             </DialogHeader>

@@ -56,7 +56,7 @@ function toStaffAccount(user: User): StaffAccount {
 /** Throws unless `accessToken` belongs to a signed-in manager; returns that user if so. */
 async function requireManager(accessToken: string) {
   const { data, error } = await supabaseAdmin().auth.getUser(accessToken);
-  if (error || !data.user) throw new Error("Your session has expired — sign in again.");
+  if (error || !data.user) throw new Error("Your session has expired, sign in again.");
   if (data.user.app_metadata?.role !== "manager") {
     throw new Error("Only managers can do this.");
   }
