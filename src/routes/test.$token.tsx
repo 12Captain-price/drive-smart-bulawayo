@@ -65,7 +65,7 @@ export const Route = createFileRoute("/test/$token")({
 
 /** How long a student can be away from the test screen (tab hidden, or fullscreen exited)
  *  before their test is auto-submitted for them. */
-const GRACE_MS = 10_000;
+const GRACE_MS = 3_000;
 /** Countdown moments that get a toast warning, in whole seconds remaining. */
 const TIME_WARNINGS = [300, 60];
 
@@ -120,12 +120,29 @@ function TakeTest() {
   const warned = useRef<Set<number>>(new Set());
   const bannerTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  /** Always holds the latest assignment, so live flag reporting never writes
+   *  from a stale closure inside the visibility/fullscreen effect below. */
+  const assignmentRef = useRef(assignment);
+  useEffect(() => {
+    assignmentRef.current = assignment;
+  }, [assignment]);
 
   const started = assignment?.status === "in-progress" && Boolean(assignment.startedAt);
   const msLeft = test && assignment ? timeLeftMs(test, assignment, now) : null;
 
+  /** Records a flag locally (for the final submission's audit trail) AND
+   *  writes it straight to the assignment's log, so staff watching the
+   *  admin panel see it the moment it happens — not only once the test is
+   *  submitted. */
   function pushFlag(type: string) {
-    flags.current = [...flags.current, { at: new Date().toISOString(), type }];
+    const entry = { at: new Date().toISOString(), type };
+    flags.current = [...flags.current, entry];
+    const current = assignmentRef.current;
+    if (current) {
+      // Best-effort: if this write fails (e.g. offline), the flag is still
+      // captured in flags.current and will reach the school at submit time.
+      updateAssignment(current.id, { log: [...current.log, { at: entry.at, text: type }] });
+    }
   }
 
   function showBanner(text: string, tone: "warning" | "danger") {
@@ -214,17 +231,19 @@ function TakeTest() {
       autoTotal: graded?.total,
       submittedAt: new Date().toISOString(),
     });
+    // Flags were already written to the assignment's log live, as they
+    // happened (see pushFlag above) — don't re-add them here or they'd
+    // show up twice in the admin's "What happened" list.
     updateAssignment(assignment.id, {
       status: "submitted",
       submittedAt: new Date().toISOString(),
       resultsToken: assignment.resultsToken ?? makeToken(),
       log: [
-        ...assignment.log,
+        ...(assignmentRef.current?.log ?? assignment.log),
         {
           at: new Date().toISOString(),
           text: auto ? (reason ?? "Time ran out, answers sent automatically") : "Answers sent",
         },
-        ...flags.current.map((f) => ({ at: f.at, text: f.type })),
       ],
     });
     setFinished(true);
