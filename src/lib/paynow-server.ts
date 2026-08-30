@@ -79,9 +79,13 @@ async function verifyPaynowHash(fields: PaynowFields, integrationKey: string): P
 }
 
 function getPaynowCredentials() {
-  const id = process.env.PAYNOW_INTEGRATION_ID;
-  const key = process.env.PAYNOW_INTEGRATION_KEY;
-  const email = process.env.PAYNOW_MERCHANT_EMAIL;
+  // .trim() guards against a trailing newline/space sneaking into a
+  // dashboard-pasted secret — invisible in the UI but silently breaks the
+  // SHA-512 hash Paynow computes on their end, producing a hash mismatch
+  // ("Invalid Hash...") even though the key "looks" right.
+  const id = process.env.PAYNOW_INTEGRATION_ID?.trim();
+  const key = process.env.PAYNOW_INTEGRATION_KEY?.trim();
+  const email = process.env.PAYNOW_MERCHANT_EMAIL?.trim();
   const isPlaceholder =
     !id || !key || id === "your-paynow-integration-id" || key === "your-paynow-integration-key";
   if (isPlaceholder) return null;
