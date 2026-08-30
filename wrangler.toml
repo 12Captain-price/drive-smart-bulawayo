@@ -4,3 +4,7 @@ compatibility_date = "2026-08-30"
 [vars]
 PAYNOW_INTEGRATION_ID = "26575"
 PAYNOW_MERCHANT_EMAIL = "persytchikanya@gmail.com"
+
+[[routes]]
+pattern = "pc-nexus.co.zw/*"
+zone_name = "pc-nexus.co.zw"
