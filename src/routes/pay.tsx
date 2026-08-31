@@ -29,7 +29,7 @@ import {
   useStudents,
   waLink,
 } from "@/lib/data";
-import { checkEcoCashPaymentStatus, initiatePayment, CARD_PAYMENTS_ENABLED, type PaymentMethod } from "@/lib/paynow-server";
+import { checkEcoCashPaymentStatus, initiatePayment, CARD_PAYMENTS_ENABLED, ONEMONEY_ENABLED, type PaymentMethod } from "@/lib/paynow-server";
 import { cn } from "@/lib/utils";
 
 /** How often we poll Paynow for a status change. */
@@ -579,16 +579,17 @@ function Pay() {
 
               {stage === "form" && (
                 <>
-                  <div className={cn("grid gap-2", CARD_PAYMENTS_ENABLED ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-                    {(
-                      [
-                        { id: "ecocash", label: "EcoCash", icon: Smartphone },
-                        { id: "onemoney", label: "OneMoney", icon: Smartphone },
-                        ...(CARD_PAYMENTS_ENABLED
-                          ? [{ id: "card" as const, label: "Visa/Mastercard", icon: CreditCard }]
-                          : []),
-                      ] as { id: PaymentMethod; label: string; icon: typeof Smartphone }[]
-                    ).map((m) => (
+                  {(() => {
+                    const paymentOptions: { id: PaymentMethod; label: string; icon: typeof Smartphone }[] = [
+                      { id: "ecocash", label: "EcoCash", icon: Smartphone },
+                      ...(ONEMONEY_ENABLED ? [{ id: "onemoney" as const, label: "OneMoney", icon: Smartphone }] : []),
+                      ...(CARD_PAYMENTS_ENABLED ? [{ id: "card" as const, label: "Visa/Mastercard", icon: CreditCard }] : []),
+                    ];
+                    const gridColsClass =
+                      paymentOptions.length >= 3 ? "sm:grid-cols-3" : paymentOptions.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-1";
+                    return (
+                  <div className={cn("grid gap-2", gridColsClass)}>
+                    {paymentOptions.map((m) => (
                       <button
                         type="button"
                         key={m.id}
@@ -607,6 +608,8 @@ function Pay() {
                       </button>
                     ))}
                   </div>
+                    );
+                  })()}
 
                   {method !== "card" ? (
                     <>

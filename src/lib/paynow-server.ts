@@ -113,6 +113,16 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
  */
 export const CARD_PAYMENTS_ENABLED = true;
 
+/**
+ * OneMoney is only enabled on this Paynow integration in ZWG — this site
+ * charges in USD, and Paynow rejects a USD request for a payment method
+ * that isn't enabled in USD on the account. Flip this to true if/when
+ * OneMoney USD gets enabled on the Paynow dashboard (Payment Methods list);
+ * until then it's hidden on /pay and rejected here too, same pattern as
+ * CARD_PAYMENTS_ENABLED above.
+ */
+export const ONEMONEY_ENABLED = false;
+
 /** Mobile-money number validation, per network. Card has no phone field. */
 const MOBILE_NUMBER_PATTERNS: Record<"ecocash" | "onemoney", { regex: RegExp; hint: string }> = {
   ecocash: { regex: /^0?7[7-8]\d{7}$/, hint: "Enter a valid EcoCash number, e.g. 077 123 4567" },
@@ -138,6 +148,10 @@ const initiateInput = z
   })
   .refine((data) => CARD_PAYMENTS_ENABLED || data.method !== "card", {
     message: "Card payments aren't available yet. Please use EcoCash or OneMoney.",
+    path: ["method"],
+  })
+  .refine((data) => ONEMONEY_ENABLED || data.method !== "onemoney", {
+    message: "OneMoney isn't available yet. Please use EcoCash instead.",
     path: ["method"],
   })
   .refine(
