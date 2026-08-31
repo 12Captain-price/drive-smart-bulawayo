@@ -8,3 +8,7 @@ PAYNOW_MERCHANT_EMAIL = "persytchikanya@gmail.com"
 [[routes]]
 pattern = "pc-nexus.co.zw/*"
 zone_name = "pc-nexus.co.zw"
+
+[[routes]]
+pattern = "autodrivingschool.ac.zw/*"
+zone_name = "autodrivingschool.ac.zw"
