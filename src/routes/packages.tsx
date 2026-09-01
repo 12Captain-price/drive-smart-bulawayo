@@ -57,8 +57,7 @@ function Packages() {
           ))}
         </div>
         <p className="text-muted-foreground mt-8 text-sm">
-          Prices are in USD. Single lessons are available on request, but a bundle always works out
-          better value.
+          Prices are in USD. 
         </p>
       </Section>
       <CtaBand title="Not sure which package?" />
