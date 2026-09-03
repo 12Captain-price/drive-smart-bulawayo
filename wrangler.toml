@@ -10,5 +10,5 @@ pattern = "pc-nexus.co.zw/*"
 zone_name = "pc-nexus.co.zw"
 
 [[routes]]
-pattern = "autodrivingschool.ac.zw/*"
-zone_name = "autodrivingschool.ac.zw"
+pattern = "autodrivingschools.org/*"
+zone_name = "autodrivingschools.org"
