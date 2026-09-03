@@ -206,7 +206,13 @@ export const initiatePayment = createServerFn({ method: "POST" })
       // We poll pollurl for status instead of relying on this being hit, so
       // it just needs to be a valid, reachable URL — see file header.
       resulturl: `${siteUrl}/pay`,
-      authemail: creds.email,
+      // authemail is optional per Paynow's docs. While this integration is
+      // still in test mode, Paynow requires authemail (if sent at all) to
+      // exactly match the merchant account's own login email — which kept
+      // rejecting real customer flows. Omitting it entirely sidesteps that
+      // restriction now and still works fine once the integration goes
+      // Live. Revisit later if you want auto-login-by-email for customers
+      // (pass the customer's own email here instead of the merchant's).
       status: "Message",
     };
     // Mobile money (Express Checkout) needs `method` + `phone` so Paynow
