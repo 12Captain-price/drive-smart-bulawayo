@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Check,
   CheckCircle2,
@@ -24,14 +24,11 @@ import { BannerImage } from "@/components/site/BannerImage";
 import { Section } from "@/components/site/blocks";
 import {
   TIME_SLOTS,
-  bookedSlotKeys,
   bookingRef,
   errorMessage,
   fetchContactData,
-  findClashes,
   publishedPhotos,
   renderTemplate,
-  slotKey,
   useEnquiries,
   usePackages,
   usePhotos,
@@ -188,7 +185,7 @@ function Contact() {
   const { settings } = useSettings();
   const { items: packages } = usePackages();
   const { items: photos } = usePhotos();
-  const { items: enquiries, add } = useEnquiries();
+  const { add } = useEnquiries();
 
   const banner = publishedPhotos(photos, "contact")[0];
 
@@ -206,12 +203,6 @@ function Contact() {
   const [reference, setReference] = useState("");
   const [step, setStep] = useState(0);
 
-  const taken = useMemo(() => bookedSlotKeys(enquiries), [enquiries]);
-  /** A slot is unavailable when every selected day already has it booked. */
-  const slotUnavailable = (s: string) =>
-    days.length > 0 && days.every((d) => taken.has(slotKey(d, s)));
-  const clashes = findClashes(days, slots, taken);
-
   const toggle = (list: string[], setList: (v: string[]) => void, v: string) =>
     setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
@@ -223,7 +214,7 @@ function Contact() {
     name.trim().length > 0 && phone.trim().length > 0,
     true,
     true,
-    clashes.length === 0,
+    true,
     true,
   ];
   const goNext = () => stepValid[step] && setStep((s) => Math.min(s + 1, STEPS.length - 1));
@@ -238,10 +229,6 @@ function Contact() {
     }
     if (!packageId) {
       toast.error("Choose a package to continue");
-      return;
-    }
-    if (clashes.length) {
-      toast.error(`Already booked: ${clashes.join(", ")}. Please pick another time.`);
       return;
     }
     setSubmitting(true);
@@ -444,7 +431,7 @@ function Contact() {
                           </p>
                           <div className="mt-4 grid gap-4 sm:grid-cols-2">
                             <div className="grid gap-2">
-                              <Label htmlFor="name">Full name</Label>
+                              <Label htmlFor="name">Your name</Label>
                               <Input
                                 id="name"
                                 value={name}
@@ -512,30 +499,19 @@ function Contact() {
                         <div>
                           <h2 className="text-lg font-semibold">Preferred time slots</h2>
                           <p className="text-muted-foreground mt-1 text-sm">
-                            Pick one or more lesson start times. Slots already booked on all your
-                            chosen days are crossed out.
+                            Pick one or more lesson start times that suit you.
                           </p>
                           <div className="mt-4 flex flex-wrap gap-2">
-                            {TIME_SLOTS.map((s) => {
-                              const unavailable = slotUnavailable(s);
-                              return (
-                                <Chip
-                                  key={s}
-                                  active={slots.includes(s)}
-                                  disabled={unavailable}
-                                  title={unavailable ? "Already booked" : undefined}
-                                  onClick={() => toggle(slots, setSlots, s)}
-                                >
-                                  {s}
-                                </Chip>
-                              );
-                            })}
+                            {TIME_SLOTS.map((s) => (
+                              <Chip
+                                key={s}
+                                active={slots.includes(s)}
+                                onClick={() => toggle(slots, setSlots, s)}
+                              >
+                                {s}
+                              </Chip>
+                            ))}
                           </div>
-                          {clashes.length > 0 && (
-                            <p className="text-destructive mt-3 text-xs">
-                              Already booked: {clashes.join(", ")}, please choose another time.
-                            </p>
-                          )}
                         </div>
                       )}
 
@@ -598,7 +574,7 @@ function Contact() {
                         <Button
                           type="submit"
                           size="lg"
-                          disabled={submitting || clashes.length > 0}
+                          disabled={submitting}
                           className="shadow-sm transition-all hover:shadow-md active:scale-95"
                         >
                           {submitting ? "Sending…" : "Confirm & send request"}
