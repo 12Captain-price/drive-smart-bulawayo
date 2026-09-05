@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock,
   Download,
+  HelpCircle,
   MapPin,
   MessageCircle,
   Pencil,
@@ -22,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { BannerImage } from "@/components/site/BannerImage";
 import { Section } from "@/components/site/blocks";
+import { StarRating } from "@/components/site/StarRating";
 import {
   TIME_SLOTS,
   bookingRef,
@@ -33,6 +35,7 @@ import {
   usePackages,
   usePhotos,
   useSettings,
+  useTestimonials,
   waLink,
 } from "@/lib/data";
 import { placeholderContact } from "@/lib/placeholders";
@@ -185,9 +188,11 @@ function Contact() {
   const { settings } = useSettings();
   const { items: packages } = usePackages();
   const { items: photos } = usePhotos();
+  const { items: testimonials } = useTestimonials();
   const { add } = useEnquiries();
 
   const banner = publishedPhotos(photos, "contact")[0];
+  const sidebarTestimonial = testimonials.find((t) => t.status === "published");
 
   const [packageId, setPackageId] = useState("");
   const [name, setName] = useState("");
@@ -420,6 +425,15 @@ function Contact() {
                               </button>
                             ))}
                           </div>
+                          <a
+                            href={waLink(settings.whatsapp, settings.waPackageHelpTemplate)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-muted-foreground hover:text-primary mt-4 inline-flex items-center gap-1.5 text-sm transition-colors"
+                          >
+                            <HelpCircle className="size-4" /> Not sure what to pick? Ask us on
+                            WhatsApp
+                          </a>
                         </div>
                       )}
 
@@ -598,6 +612,22 @@ function Contact() {
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <Card>
               <CardContent className="space-y-4 pt-6">
+                {selectedPackage && (
+                  <div className="bg-primary/[0.04] border-primary/20 animate-in fade-in rounded-lg border p-3 duration-300">
+                    <h2 className="label-mono text-muted-foreground">Your package</h2>
+                    <div className="mt-1.5 flex items-baseline justify-between gap-2">
+                      <span className="font-semibold">{selectedPackage.name}</span>
+                      <span className="text-primary font-mono font-bold">
+                        ${selectedPackage.price}
+                      </span>
+                    </div>
+                    {!!selectedPackage.lessons && (
+                      <span className="text-muted-foreground text-xs">
+                        {selectedPackage.lessons} lessons
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div>
                   <h2 className="label-mono text-muted-foreground">Find us</h2>
                   <p className="mt-2 flex gap-2 text-sm">
@@ -646,6 +676,17 @@ function Contact() {
                       <Smartphone className="size-4" /> Pay for your lessons
                     </Link>
                   </Button>
+                )}
+                {sidebarTestimonial && (
+                  <div className="border-t pt-4">
+                    <StarRating value={sidebarTestimonial.rating} size={12} />
+                    <p className="text-foreground mt-1.5 line-clamp-3 text-xs leading-snug italic">
+                      "{sidebarTestimonial.comment}"
+                    </p>
+                    <p className="text-muted-foreground mt-1.5 truncate font-mono text-[10px] font-bold tracking-wide uppercase">
+                      {sidebarTestimonial.name}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>

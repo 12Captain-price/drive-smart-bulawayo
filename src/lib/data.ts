@@ -288,6 +288,8 @@ export interface SiteSettings {
   waGeneralTemplate: string;
   /** WhatsApp message pre-filled after a booking request. Supports tokens. */
   waBookingTemplate: string;
+  /** WhatsApp message pre-filled when a learner isn't sure which package to pick. */
+  waPackageHelpTemplate: string;
   /** EcoCash number learners send money to. */
   ecocashNumber: string;
   /** WhatsApp message pre-filled after a payment submission. Supports tokens. */
@@ -339,6 +341,8 @@ export const defaultSettings: SiteSettings = {
     "Preferred time of day: {times}",
     "Preferred time slots: {slots}",
   ].join("\n"),
+  waPackageHelpTemplate:
+    "Hi Auto Driving School, I'm not sure which package suits me — could you help me choose?",
   ecocashNumber: "078 873 3625",
   waPaymentTemplate: [
     "Hi Auto Driving School, I've paid for my lessons on EcoCash.",

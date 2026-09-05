@@ -2433,6 +2433,18 @@ function SettingsPanel() {
             </pre>
           </div>
         </div>
+        <div className="grid gap-2 sm:col-span-2">
+          <Label>WhatsApp message: "not sure which package" link</Label>
+          <Textarea
+            rows={2}
+            value={settings.waPackageHelpTemplate}
+            onChange={(e) => save({ waPackageHelpTemplate: e.target.value })}
+          />
+          <p className="text-muted-foreground text-xs">
+            Shown as a link on the booking page's package step, for learners who aren't sure
+            which package to pick.
+          </p>
+        </div>
 
         <div className="grid gap-2">
           <Label>EcoCash number</Label>
