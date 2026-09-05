@@ -2377,6 +2377,12 @@ export interface Question {
   text: string;
   options: string[];
   correct: number;
+  /** Optional photo/diagram for the question (e.g. a road sign or a junction
+   *  layout) — a "test-files" Storage public URL, same as test papers/answer
+   *  keys, not a base64 data URL (keeps the questions jsonb small and avoids
+   *  the payload-size issues noted on uploadTestFileToStorage). */
+  image?: string;
+  imageName?: string;
 }
 
 export interface Test {

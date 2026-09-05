@@ -40,7 +40,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { ChipGroup } from "@/components/site/ChipGroup";
 import {
   ASSIGNMENT_STATUSES,
@@ -150,7 +157,11 @@ function ExpandableMedia({
   return (
     <>
       <div className={cn("bg-secondary/30 relative overflow-y-auto rounded-lg border", className)}>
-        {isPdf ? <PdfPaper src={src} className="size-full" /> : <img src={src} alt={alt} className="size-full object-contain" />}
+        {isPdf ? (
+          <PdfPaper src={src} className="size-full" />
+        ) : (
+          <img src={src} alt={alt} className="size-full object-contain" />
+        )}
         <Button
           type="button"
           size="sm"
@@ -233,7 +244,9 @@ function SearchPicker({
                     setOpen(false);
                   }}
                 >
-                  <Check className={cn("size-4", value === o.value ? "opacity-100" : "opacity-0")} />
+                  <Check
+                    className={cn("size-4", value === o.value ? "opacity-100" : "opacity-0")}
+                  />
                   <span className="truncate">{o.label}</span>
                 </CommandItem>
               ))}
@@ -278,7 +291,8 @@ function MultiSearchPicker({
         >
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             {values.length === 0 && <span className="text-muted-foreground">{placeholder}</span>}
-            {values.length > 0 && values.length <= 3 &&
+            {values.length > 0 &&
+              values.length <= 3 &&
               options
                 .filter((o) => selectedSet.has(o.value))
                 .map((o) => (
@@ -433,6 +447,7 @@ function TestEditor({
   const [open, setOpen] = useState(defaultOpen);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [uploading, setUploading] = useState<"paper" | "answerKey" | null>(null);
+  const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
   const setQuestions = (questions: Question[]) => update(test.id, { questions });
   const ready = testIsReady(test);
   const readyReason = testReadyReason(test);
@@ -468,11 +483,37 @@ function TestEditor({
       // message — this used to fail silently-ish (a toast that's easy to
       // miss) leaving the field looking like nothing was uploaded, with the
       // test just staying "Not finished yet" with no clue why.
-      toast.error(`Could not upload that file, ${errorMessage(err, "check your connection and try again.")}`, {
-        duration: Infinity,
-      });
+      toast.error(
+        `Could not upload that file, ${errorMessage(err, "check your connection and try again.")}`,
+        {
+          duration: Infinity,
+        },
+      );
     } finally {
       setUploading(null);
+    }
+  }
+
+  async function uploadQuestionImage(file: File | undefined, questionId: string) {
+    if (!file) return;
+    setUploadingImageFor(questionId);
+    try {
+      const url = await uploadTestFileToStorage(file);
+      setQuestions(
+        test.questions.map((x) =>
+          x.id === questionId ? { ...x, image: url, imageName: file.name } : x,
+        ),
+      );
+      toast.success("Image added");
+    } catch (err) {
+      toast.error(
+        `Could not upload that image, ${errorMessage(err, "check your connection and try again.")}`,
+        {
+          duration: Infinity,
+        },
+      );
+    } finally {
+      setUploadingImageFor(null);
     }
   }
 
@@ -489,7 +530,11 @@ function TestEditor({
             test.type === "mcq" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent",
           )}
         >
-          {test.type === "mcq" ? <ListChecks className="size-4" /> : <FileText className="size-4" />}
+          {test.type === "mcq" ? (
+            <ListChecks className="size-4" />
+          ) : (
+            <FileText className="size-4" />
+          )}
         </span>
 
         <span className="min-w-0 flex-1">
@@ -509,7 +554,7 @@ function TestEditor({
             )}
             <span aria-hidden>·</span>
             <span className={cn("font-medium", ready ? "text-success" : "text-muted-foreground")}>
-              {ready ? "Ready to send out" : readyReason ?? "Not finished yet"}
+              {ready ? "Ready to send out" : (readyReason ?? "Not finished yet")}
             </span>
           </span>
         </span>
@@ -526,7 +571,10 @@ function TestEditor({
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>Test name</Label>
-              <Input value={test.title} onChange={(e) => update(test.id, { title: e.target.value })} />
+              <Input
+                value={test.title}
+                onChange={(e) => update(test.id, { title: e.target.value })}
+              />
             </div>
             <div className="grid gap-2">
               <Label>Time allowed (minutes)</Label>
@@ -549,203 +597,268 @@ function TestEditor({
             />
           </div>
 
-        {test.type === "mcq" ? (
-          <div className="space-y-4">
-            {test.questions.map((q, qi) => (
-              <div key={q.id} className="bg-secondary/40 space-y-3 rounded-lg border p-4">
-                <div className="flex items-start gap-2">
-                  <span className="label-mono text-muted-foreground mt-2">Q{qi + 1}</span>
-                  <Textarea
-                    rows={2}
-                    value={q.text}
-                    placeholder="Type the question"
-                    onChange={(e) =>
-                      setQuestions(test.questions.map((x) => (x.id === q.id ? { ...x, text: e.target.value } : x)))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  {q.options.map((opt, oi) => (
-                    <div key={oi} className="flex items-center gap-2">
+          {test.type === "mcq" ? (
+            <div className="space-y-4">
+              {test.questions.map((q, qi) => (
+                <div key={q.id} className="bg-secondary/40 space-y-3 rounded-lg border p-4">
+                  <div className="flex items-start gap-2">
+                    <span className="label-mono text-muted-foreground mt-2">Q{qi + 1}</span>
+                    <Textarea
+                      rows={2}
+                      value={q.text}
+                      placeholder="Type the question"
+                      onChange={(e) =>
+                        setQuestions(
+                          test.questions.map((x) =>
+                            x.id === q.id ? { ...x, text: e.target.value } : x,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2 pl-7">
+                    <Label className="text-xs">
+                      Image (optional — e.g. a road sign or junction diagram)
+                    </Label>
+                    {q.image ? (
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={q.image}
+                          alt={q.imageName ?? "Question image"}
+                          className="h-20 w-20 rounded-lg border object-cover"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-muted-foreground truncate text-xs">{q.imageName}</p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="mt-1"
+                            onClick={() =>
+                              setQuestions(
+                                test.questions.map((x) =>
+                                  x.id === q.id
+                                    ? { ...x, image: undefined, imageName: undefined }
+                                    : x,
+                                ),
+                              )
+                            }
+                          >
+                            <Trash2 className="size-4" /> Remove image
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
                       <Input
-                        value={opt}
-                        placeholder={`Answer ${oi + 1}`}
-                        onChange={(e) =>
-                          setQuestions(
-                            test.questions.map((x) =>
-                              x.id === q.id
-                                ? { ...x, options: x.options.map((o, i) => (i === oi ? e.target.value : o)) }
-                                : x,
-                            ),
-                          )
-                        }
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingImageFor !== null}
+                        onChange={(e) => uploadQuestionImage(e.target.files?.[0], q.id)}
                       />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={q.correct === oi ? "default" : "outline"}
-                        onClick={() =>
-                          setQuestions(test.questions.map((x) => (x.id === q.id ? { ...x, correct: oi } : x)))
-                        }
-                      >
-                        {q.correct === oi ? "Correct" : "Mark correct"}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Remove answer"
-                        onClick={() =>
-                          setQuestions(
-                            test.questions.map((x) => {
-                              if (x.id !== q.id) return x;
-                              const options = x.options.filter((_, i) => i !== oi);
-                              // Keep "correct" pointing at the same answer text, not the same slot —
-                              // otherwise deleting an earlier/marked option silently re-marks the wrong one.
-                              let correct = x.correct;
-                              if (x.correct === oi) correct = 0;
-                              else if (x.correct > oi) correct = x.correct - 1;
-                              return { ...x, options, correct };
-                            }),
-                          )
-                        }
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setQuestions(
-                        test.questions.map((x) => (x.id === q.id ? { ...x, options: [...x.options, ""] } : x)),
-                      )
-                    }
-                  >
-                    <Plus className="size-4" /> Add answer
-                  </Button>
-                </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button type="button" size="sm" variant="destructive">
-                      <Trash2 className="size-4" /> Delete question
+                    )}
+                    {uploadingImageFor === q.id && (
+                      <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                        <Loader2 className="size-3 animate-spin" /> Uploading…
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {q.options.map((opt, oi) => (
+                      <div key={oi} className="flex items-center gap-2">
+                        <Input
+                          value={opt}
+                          placeholder={`Answer ${oi + 1}`}
+                          onChange={(e) =>
+                            setQuestions(
+                              test.questions.map((x) =>
+                                x.id === q.id
+                                  ? {
+                                      ...x,
+                                      options: x.options.map((o, i) =>
+                                        i === oi ? e.target.value : o,
+                                      ),
+                                    }
+                                  : x,
+                              ),
+                            )
+                          }
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={q.correct === oi ? "default" : "outline"}
+                          onClick={() =>
+                            setQuestions(
+                              test.questions.map((x) =>
+                                x.id === q.id ? { ...x, correct: oi } : x,
+                              ),
+                            )
+                          }
+                        >
+                          {q.correct === oi ? "Correct" : "Mark correct"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Remove answer"
+                          onClick={() =>
+                            setQuestions(
+                              test.questions.map((x) => {
+                                if (x.id !== q.id) return x;
+                                const options = x.options.filter((_, i) => i !== oi);
+                                // Keep "correct" pointing at the same answer text, not the same slot —
+                                // otherwise deleting an earlier/marked option silently re-marks the wrong one.
+                                let correct = x.correct;
+                                if (x.correct === oi) correct = 0;
+                                else if (x.correct > oi) correct = x.correct - 1;
+                                return { ...x, options, correct };
+                              }),
+                            )
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setQuestions(
+                          test.questions.map((x) =>
+                            x.id === q.id ? { ...x, options: [...x.options, ""] } : x,
+                          ),
+                        )
+                      }
+                    >
+                      <Plus className="size-4" /> Add answer
                     </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete this question?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        "{q.text || "(no question text)"}" and its answers will be removed for good. This can't be
-                        undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        onClick={() => setQuestions(test.questions.filter((x) => x.id !== q.id))}
-                      >
-                        Delete question
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                setQuestions([...test.questions, { id: uid(), text: "", options: ["", ""], correct: 0 }])
-              }
-            >
-              <Plus className="size-4" /> Add question
-            </Button>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>Test paper (PDF or photo)</Label>
-              <Input
-                type="file"
-                accept="application/pdf,image/*"
-                disabled={uploading !== null}
-                onChange={(e) => upload(e.target.files?.[0], "paper")}
-              />
-              {uploading === "paper" && (
-                <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                  <Loader2 className="size-3 animate-spin" /> Uploading…
-                </p>
-              )}
-              {uploading !== "paper" && test.paperName && (
-                <p className="text-muted-foreground text-xs">Added: {test.paperName}</p>
-              )}
-            </div>
-            <div className="grid gap-2">
-              <Label>Answer key (PDF)</Label>
-              <Input
-                type="file"
-                accept="application/pdf"
-                disabled={uploading !== null}
-                onChange={(e) => upload(e.target.files?.[0], "answerKey")}
-              />
-              {uploading === "answerKey" && (
-                <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                  <Loader2 className="size-3 animate-spin" /> Uploading…
-                </p>
-              )}
-              {uploading !== "answerKey" && test.answerKeyName && (
-                <p className="text-muted-foreground text-xs">Added: {test.answerKeyName}</p>
-              )}
-            </div>
-            <div className="grid gap-2 sm:col-span-2">
-              <Label>Or type the answers (staff only: never shown to students)</Label>
-              <Textarea
-                rows={4}
-                value={test.answerKeyText ?? ""}
-                placeholder="1. B&#10;2. C&#10;3. A"
-                onChange={(e) => update(test.id, { answerKeyText: e.target.value })}
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-          <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
-            <ChevronUp className="size-4" /> Collapse
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={duplicate}>
-            <Copy className="size-4" /> Duplicate
-          </Button>
-          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-            <AlertDialogTrigger asChild>
-              <Button size="sm" variant="destructive" className="ml-auto">
-                <Trash2 className="size-4" /> Delete test
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" size="sm" variant="destructive">
+                        <Trash2 className="size-4" /> Delete question
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this question?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          "{q.text || "(no question text)"}" and its answers will be removed for
+                          good. This can't be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => setQuestions(test.questions.filter((x) => x.id !== q.id))}
+                        >
+                          Delete question
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setQuestions([
+                    ...test.questions,
+                    { id: uid(), text: "", options: ["", ""], correct: 0 },
+                  ])
+                }
+              >
+                <Plus className="size-4" /> Add question
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete "{test.title || "Untitled test"}"?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This deletes the test and all its questions for good. Any links you've already sent to students
-                  for this test will stop working, even if they haven't written it yet.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => safe(() => remove(test.id), "Test deleted")}
-                >
-                  Delete test
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </CardContent>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Test paper (PDF or photo)</Label>
+                <Input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  disabled={uploading !== null}
+                  onChange={(e) => upload(e.target.files?.[0], "paper")}
+                />
+                {uploading === "paper" && (
+                  <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                    <Loader2 className="size-3 animate-spin" /> Uploading…
+                  </p>
+                )}
+                {uploading !== "paper" && test.paperName && (
+                  <p className="text-muted-foreground text-xs">Added: {test.paperName}</p>
+                )}
+              </div>
+              <div className="grid gap-2">
+                <Label>Answer key (PDF)</Label>
+                <Input
+                  type="file"
+                  accept="application/pdf"
+                  disabled={uploading !== null}
+                  onChange={(e) => upload(e.target.files?.[0], "answerKey")}
+                />
+                {uploading === "answerKey" && (
+                  <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                    <Loader2 className="size-3 animate-spin" /> Uploading…
+                  </p>
+                )}
+                {uploading !== "answerKey" && test.answerKeyName && (
+                  <p className="text-muted-foreground text-xs">Added: {test.answerKeyName}</p>
+                )}
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Or type the answers (staff only: never shown to students)</Label>
+                <Textarea
+                  rows={4}
+                  value={test.answerKeyText ?? ""}
+                  placeholder="1. B&#10;2. C&#10;3. A"
+                  onChange={(e) => update(test.id, { answerKeyText: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+            <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
+              <ChevronUp className="size-4" /> Collapse
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={duplicate}>
+              <Copy className="size-4" /> Duplicate
+            </Button>
+            <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="destructive" className="ml-auto">
+                  <Trash2 className="size-4" /> Delete test
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete "{test.title || "Untitled test"}"?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This deletes the test and all its questions for good. Any links you've already
+                    sent to students for this test will stop working, even if they haven't written
+                    it yet.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => safe(() => remove(test.id), "Test deleted")}
+                  >
+                    Delete test
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </CardContent>
       )}
     </Card>
   );
@@ -769,12 +882,20 @@ function AssignPanel() {
   const [studentIds, setStudentIds] = useState<string[]>([]);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [listQuery, setListQuery] = useState("");
-  const [duplicateInfo, setDuplicateInfo] = useState<{ duplicates: Student[]; targets: Student[] } | null>(null);
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    duplicates: Student[];
+    targets: Student[];
+  } | null>(null);
 
   const test = tests.find((t) => t.id === testId);
 
   const counts = useMemo(() => {
-    const c: Record<AssignmentStatus, number> = { "not-started": 0, "in-progress": 0, submitted: 0, expired: 0 };
+    const c: Record<AssignmentStatus, number> = {
+      "not-started": 0,
+      "in-progress": 0,
+      submitted: 0,
+      expired: 0,
+    };
     for (const a of assignments) c[a.status]++;
     return c;
   }, [assignments]);
@@ -791,29 +912,35 @@ function AssignPanel() {
 
   function hasUnfinished(studentId: string, testIdToCheck: string) {
     return assignments.some(
-      (a) => a.testId === testIdToCheck && a.studentId === studentId && (a.status === "not-started" || a.status === "in-progress"),
+      (a) =>
+        a.testId === testIdToCheck &&
+        a.studentId === studentId &&
+        (a.status === "not-started" || a.status === "in-progress"),
     );
   }
 
   function doCreate(targets: Student[]) {
     if (!test) return;
-    safe(async () => {
-      const created = await addMany(
-        targets.map((s) => ({
-          testId: test.id,
-          studentId: s.id,
-          token: makeToken(),
-          accessCode: makeAccessCode(),
-          status: "not-started" as AssignmentStatus,
-          extensionMinutes: 0,
-          notes: "",
-          log: [{ at: new Date().toISOString(), text: "Test sent out" }],
-          createdAt: new Date().toISOString(),
-        })),
-      );
-      setJustCreatedId(created[0]?.id ?? null);
-      setStudentIds([]);
-    }, targets.length > 1 ? `Test link created for ${targets.length} students` : "Test link created");
+    safe(
+      async () => {
+        const created = await addMany(
+          targets.map((s) => ({
+            testId: test.id,
+            studentId: s.id,
+            token: makeToken(),
+            accessCode: makeAccessCode(),
+            status: "not-started" as AssignmentStatus,
+            extensionMinutes: 0,
+            notes: "",
+            log: [{ at: new Date().toISOString(), text: "Test sent out" }],
+            createdAt: new Date().toISOString(),
+          })),
+        );
+        setJustCreatedId(created[0]?.id ?? null);
+        setStudentIds([]);
+      },
+      targets.length > 1 ? `Test link created for ${targets.length} students` : "Test link created",
+    );
   }
 
   function attemptCreate() {
@@ -821,7 +948,9 @@ function AssignPanel() {
       toast.error("Choose a test first");
       return;
     }
-    const targets = studentIds.map((id) => students.find((s) => s.id === id)).filter((s): s is Student => Boolean(s));
+    const targets = studentIds
+      .map((id) => students.find((s) => s.id === id))
+      .filter((s): s is Student => Boolean(s));
     if (targets.length === 0) {
       toast.error("Choose at least one student");
       return;
@@ -858,7 +987,11 @@ function AssignPanel() {
               values={studentIds}
               onChange={setStudentIds}
               placeholder="Search students, pick one or several…"
-              options={students.map((s) => ({ value: s.id, label: `${s.name} · ${s.phone}`, hint: s.phone }))}
+              options={students.map((s) => ({
+                value: s.id,
+                label: `${s.name} · ${s.phone}`,
+                hint: s.phone,
+              }))}
               emptyText="No students yet."
             />
             <p className="text-muted-foreground text-xs">
@@ -867,7 +1000,9 @@ function AssignPanel() {
           </div>
           <Button onClick={attemptCreate} size="lg">
             <Send className="size-4" />
-            {studentIds.length > 1 ? `Create ${studentIds.length} test links` : "Create the student's test link"}
+            {studentIds.length > 1
+              ? `Create ${studentIds.length} test links`
+              : "Create the student's test link"}
           </Button>
           <p className="text-muted-foreground text-xs">
             Each link works once, on one device. If a student loses it, reset it below.
@@ -923,7 +1058,11 @@ function AssignPanel() {
       {assignments.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {STATUS_COUNT_META.map((m) => (
-            <Badge key={m.value} variant="outline" className={cn("border-transparent font-medium", m.tone)}>
+            <Badge
+              key={m.value}
+              variant="outline"
+              className={cn("border-transparent font-medium", m.tone)}
+            >
               {counts[m.value]} {m.label}
             </Badge>
           ))}
@@ -1016,7 +1155,9 @@ function AssignmentCard({
             </Badge>
             <span>{(t?.minutes ?? 0) + a.extensionMinutes} min</span>
             <span aria-hidden>·</span>
-            <span className={cn("font-medium", ASSIGNMENT_STATUS_TONE[a.status])}>{statusLabel}</span>
+            <span className={cn("font-medium", ASSIGNMENT_STATUS_TONE[a.status])}>
+              {statusLabel}
+            </span>
             {a.accessCodeUsed && a.status !== "submitted" && (
               <>
                 <span aria-hidden>·</span>
@@ -1045,8 +1186,16 @@ function AssignmentCard({
             <Button type="button" size="sm" variant="outline" onClick={() => copy(link)}>
               <Copy className="size-4" /> Copy link
             </Button>
-            <Button size="sm" asChild className="bg-success text-success-foreground hover:bg-success/90">
-              <a href={waLink(settings.whatsapp && s?.phone ? s.phone : settings.whatsapp, message)} target="_blank" rel="noreferrer">
+            <Button
+              size="sm"
+              asChild
+              className="bg-success text-success-foreground hover:bg-success/90"
+            >
+              <a
+                href={waLink(settings.whatsapp && s?.phone ? s.phone : settings.whatsapp, message)}
+                target="_blank"
+                rel="noreferrer"
+              >
                 Send on WhatsApp
               </a>
             </Button>
@@ -1057,7 +1206,9 @@ function AssignmentCard({
               <span className="text-muted-foreground text-xs">Access code</span>
               <p className="font-mono text-sm font-semibold">
                 {a.accessCode}{" "}
-                {a.accessCodeUsed && <span className="text-destructive font-sans font-normal">(used)</span>}
+                {a.accessCodeUsed && (
+                  <span className="text-destructive font-sans font-normal">(used)</span>
+                )}
               </p>
             </div>
             <Button
@@ -1069,7 +1220,10 @@ function AssignmentCard({
                     update(a.id, {
                       accessCode: makeAccessCode(),
                       accessCodeUsed: false,
-                      log: [...a.log, { at: new Date().toISOString(), text: "Access code renewed by staff" }],
+                      log: [
+                        ...a.log,
+                        { at: new Date().toISOString(), text: "Access code renewed by staff" },
+                      ],
                     }),
                   "New access code created",
                 )
@@ -1141,7 +1295,10 @@ function AssignmentCard({
                       submittedAt: undefined,
                       log: [
                         ...a.log,
-                        { at: new Date().toISOString(), text: "Link reset by staff (access code renewed too)" },
+                        {
+                          at: new Date().toISOString(),
+                          text: "Link reset by staff (access code renewed too)",
+                        },
                       ],
                     }),
                   "New link and access code created",
@@ -1214,7 +1371,8 @@ function GradePanel() {
         ) : (
           <>
             <span className="text-accent">
-              {needsGrading} test{needsGrading === 1 ? "" : "s"} need{needsGrading === 1 ? "s" : ""} grading
+              {needsGrading} test{needsGrading === 1 ? "" : "s"} need{needsGrading === 1 ? "s" : ""}{" "}
+              grading
             </span>
             <span className="text-muted-foreground"> · {rows.length} total</span>
           </>
@@ -1261,7 +1419,9 @@ function SubmissionCard({
   // page does, and fall back to a plain <img> otherwise.
   const isPdfFile = (src: string | undefined, name: string | undefined) =>
     Boolean(src) &&
-    (src!.startsWith("data:application/pdf") || /\.pdf($|\?)/i.test(src!) || /\.pdf$/i.test(name ?? ""));
+    (src!.startsWith("data:application/pdf") ||
+      /\.pdf($|\?)/i.test(src!) ||
+      /\.pdf$/i.test(name ?? ""));
   const paperIsPdf = isPdfFile(test?.paper, test?.paperName);
   const keyIsPdf = isPdfFile(test?.answerKey, test?.answerKeyName);
   const flagGroups = useMemo(() => {
@@ -1276,17 +1436,24 @@ function SubmissionCard({
   // for why this can't be a real silent auto-grade.
   const [pdfMatchState, setPdfMatchState] = useState<"idle" | "loading" | "error" | "done">("idle");
   const [pdfMatch, setPdfMatch] = useState<PdfMatchResult | null>(null);
-  const canAutoMatch = test?.type === "pdf" && Boolean(test.answerKeyText?.trim() || (test.answerKey && keyIsPdf)) && Boolean(sub.typed);
+  const canAutoMatch =
+    test?.type === "pdf" &&
+    Boolean(test.answerKeyText?.trim() || (test.answerKey && keyIsPdf)) &&
+    Boolean(sub.typed);
 
   async function runAutoMatch() {
     if (!test || !sub.typed) return;
     setPdfMatchState("loading");
     try {
-      const keyText = test.answerKeyText?.trim() || (test.answerKey && keyIsPdf ? await extractPdfText(test.answerKey) : "");
+      const keyText =
+        test.answerKeyText?.trim() ||
+        (test.answerKey && keyIsPdf ? await extractPdfText(test.answerKey) : "");
       if (!keyText.trim()) throw new Error("No readable text in the answer key");
       const result = matchPdfAnswers(keyText, sub.typed);
       if (!result) {
-        toast.error("Couldn't find numbered answers (1. 2. 3. …) in the answer key to match against");
+        toast.error(
+          "Couldn't find numbered answers (1. 2. 3. …) in the answer key to match against",
+        );
         setPdfMatchState("error");
         return;
       }
@@ -1295,13 +1462,18 @@ function SubmissionCard({
     } catch (err) {
       console.error("Auto-match failed:", err);
       toast.error(
-        errorMessage(err, "Couldn't read the answer key, it may be a scanned image rather than text"),
+        errorMessage(
+          err,
+          "Couldn't read the answer key, it may be a scanned image rather than text",
+        ),
         { duration: 6000 },
       );
       setPdfMatchState("error");
     }
   }
-  const resultsLink = assignment?.resultsToken ? `${origin()}/results/${assignment.resultsToken}` : "";
+  const resultsLink = assignment?.resultsToken
+    ? `${origin()}/results/${assignment.resultsToken}`
+    : "";
   const message = [
     `Hi ${student?.name ?? ""}, your ${test?.title ?? "test"} result is ready.`,
     sub.mark ? `Result: ${sub.mark}` : "",
@@ -1393,8 +1565,14 @@ function SubmissionCard({
                   const right = given === q.correct;
                   return (
                     <li key={q.id} className={right ? "text-success" : "text-destructive"}>
-                      {q.text || "(no question text)"}, {given === undefined ? "not answered" : q.options[given]}
-                      {!right && <span className="text-muted-foreground"> (correct: {q.options[q.correct]})</span>}
+                      {q.text || "(no question text)"},{" "}
+                      {given === undefined ? "not answered" : q.options[given]}
+                      {!right && (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          (correct: {q.options[q.correct]})
+                        </span>
+                      )}
                     </li>
                   );
                 })}
@@ -1415,11 +1593,15 @@ function SubmissionCard({
                     className="h-96"
                   />
                 ) : (
-                  <p className="text-muted-foreground rounded-lg border p-3 text-sm">No test paper was uploaded.</p>
+                  <p className="text-muted-foreground rounded-lg border p-3 text-sm">
+                    No test paper was uploaded.
+                  </p>
                 )}
               </div>
               <div className="grid gap-1">
-                <Label>{sub.photo ? "Photo of their written answers" : "Their typed answers"}</Label>
+                <Label>
+                  {sub.photo ? "Photo of their written answers" : "Their typed answers"}
+                </Label>
                 {sub.photo ? (
                   <ExpandableMedia
                     label="Their written answers"
@@ -1450,7 +1632,11 @@ function SubmissionCard({
                       alt="Answer key"
                       className="h-72"
                     />
-                    <a href={test.answerKey} download={test.answerKeyName} className="text-primary text-xs underline">
+                    <a
+                      href={test.answerKey}
+                      download={test.answerKeyName}
+                      className="text-primary text-xs underline"
+                    >
                       <FileText className="mr-1 inline size-3.5" /> Download original
                     </a>
                   </>
@@ -1479,7 +1665,9 @@ function SubmissionCard({
                   ) : (
                     <Sparkles className="size-4" />
                   )}
-                  {pdfMatchState === "done" ? "Re-check against answer key" : "Auto-match against answer key"}
+                  {pdfMatchState === "done"
+                    ? "Re-check against answer key"
+                    : "Auto-match against answer key"}
                 </Button>
                 <span className="text-muted-foreground text-xs">
                   A suggestion only, read the flagged answers before trusting it.
@@ -1499,7 +1687,10 @@ function SubmissionCard({
                     size="sm"
                     variant="outline"
                     onClick={() =>
-                      safe(() => update(sub.id, { answerBreakdown: undefined }), "Stopped sharing answers")
+                      safe(
+                        () => update(sub.id, { answerBreakdown: undefined }),
+                        "Stopped sharing answers",
+                      )
                     }
                   >
                     Stop sharing answers
@@ -1522,9 +1713,12 @@ function SubmissionCard({
                       {pdfMatch.rows.map((r) => (
                         <li
                           key={r.n}
-                          className={r.match ? "text-success" : r.close ? "text-accent" : "text-destructive"}
+                          className={
+                            r.match ? "text-success" : r.close ? "text-accent" : "text-destructive"
+                          }
                         >
-                          Q{r.n}: key says "{r.key}", student wrote "{r.given ?? "(no answer found)"}"
+                          Q{r.n}: key says "{r.key}", student wrote "
+                          {r.given ?? "(no answer found)"}"
                           {r.match ? " ✓" : r.close ? " (close, check by eye)" : " ✗"}
                         </li>
                       ))}
@@ -1560,8 +1754,8 @@ function SubmissionCard({
                   </div>
                   {!sub.answerBreakdown && (
                     <p className="text-muted-foreground text-xs">
-                      Reveals the correct answer for every question, don't share if you reuse this paper for other
-                      students.
+                      Reveals the correct answer for every question, don't share if you reuse this
+                      paper for other students.
                     </p>
                   )}
                 </>
@@ -1580,7 +1774,11 @@ function SubmissionCard({
               <Label>What happened during the test</Label>
               <div className="flex flex-wrap gap-1.5">
                 {flagGroups.map(([type, count]) => (
-                  <Badge key={type} variant="outline" className="border-destructive/30 text-destructive font-normal">
+                  <Badge
+                    key={type}
+                    variant="outline"
+                    className="border-destructive/30 text-destructive font-normal"
+                  >
                     {type}
                     {count > 1 ? ` × ${count}` : ""}
                   </Badge>
@@ -1641,8 +1839,16 @@ function SubmissionCard({
                 <Button type="button" size="sm" variant="outline" onClick={() => copy(resultsLink)}>
                   <Copy className="size-4" /> Copy results link
                 </Button>
-                <Button size="sm" asChild className="bg-success text-success-foreground hover:bg-success/90">
-                  <a href={waLink(student?.phone || settings.whatsapp, message)} target="_blank" rel="noreferrer">
+                <Button
+                  size="sm"
+                  asChild
+                  className="bg-success text-success-foreground hover:bg-success/90"
+                >
+                  <a
+                    href={waLink(student?.phone || settings.whatsapp, message)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     <Send className="size-4" /> Send result on WhatsApp
                   </a>
                 </Button>

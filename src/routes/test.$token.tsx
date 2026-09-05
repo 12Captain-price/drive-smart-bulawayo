@@ -53,10 +53,16 @@ export const Route = createFileRoute("/test/$token")({
   head: () => ({
     meta: [
       { title: "Your Test | Auto Driving School" },
-      { name: "description", content: "Write your Auto Driving School test at your own private link." },
+      {
+        name: "description",
+        content: "Write your Auto Driving School test at your own private link.",
+      },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Your Test | Auto Driving School" },
-      { property: "og:description", content: "Private test link for Auto Driving School learners." },
+      {
+        property: "og:description",
+        content: "Private test link for Auto Driving School learners.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -85,7 +91,11 @@ function Notice({ title, body }: { title: string; body: string }) {
 
 function TakeTest() {
   const { token } = Route.useParams();
-  const { items: assignments, update: updateAssignment, isLoading: assignmentsLoading } = useAssignments();
+  const {
+    items: assignments,
+    update: updateAssignment,
+    isLoading: assignmentsLoading,
+  } = useAssignments();
   const { items: tests, isLoading: testsLoading } = useTests();
   const { items: students, isLoading: studentsLoading } = useStudents();
   const { add: addSubmission } = useSubmissions();
@@ -170,7 +180,10 @@ function TakeTest() {
       } else if (awaySince && awayReason === "tab") {
         setAwaySince(null);
         setAwayReason(null);
-        showBanner("Welcome back, leaving the test screen has been logged and reported to your school.", "warning");
+        showBanner(
+          "Welcome back, leaving the test screen has been logged and reported to your school.",
+          "warning",
+        );
       }
     };
     const onFsChange = () => {
@@ -182,7 +195,10 @@ function TakeTest() {
       } else if (awaySince && awayReason === "fullscreen") {
         setAwaySince(null);
         setAwayReason(null);
-        showBanner("Welcome back, exiting fullscreen has been logged and reported to your school.", "warning");
+        showBanner(
+          "Welcome back, exiting fullscreen has been logged and reported to your school.",
+          "warning",
+        );
       }
     };
     const blockAction = (e: Event) => {
@@ -276,7 +292,11 @@ function TakeTest() {
     for (const mark of TIME_WARNINGS) {
       if (seconds === mark && !warned.current.has(mark)) {
         warned.current.add(mark);
-        toast.warning(mark >= 60 ? `${mark / 60} minute${mark > 60 ? "s" : ""} left, start wrapping up.` : `${mark} seconds left!`);
+        toast.warning(
+          mark >= 60
+            ? `${mark / 60} minute${mark > 60 ? "s" : ""} left, start wrapping up.`
+            : `${mark} seconds left!`,
+        );
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -298,7 +318,12 @@ function TakeTest() {
         </Section>
       );
     }
-    return <Notice title="This link isn't valid" body="Please ask the school to send you a new test link." />;
+    return (
+      <Notice
+        title="This link isn't valid"
+        body="Please ask the school to send you a new test link."
+      />
+    );
   }
 
   if (finished || assignment.status === "submitted")
@@ -309,7 +334,8 @@ function TakeTest() {
             <CheckCircle2 className="text-success size-14" />
             <h1 className="text-xl font-semibold">Your answers have been sent</h1>
             <p className="text-muted-foreground text-sm">
-              Thanks {student?.name ?? ""}, the school will mark your test and send your result on WhatsApp.
+              Thanks {student?.name ?? ""}, the school will mark your test and send your result on
+              WhatsApp.
             </p>
           </CardContent>
         </Card>
@@ -317,7 +343,12 @@ function TakeTest() {
     );
 
   if (assignment.status === "expired")
-    return <Notice title="This test has closed" body="Please contact the school if you still need to write." />;
+    return (
+      <Notice
+        title="This test has closed"
+        body="Please contact the school if you still need to write."
+      />
+    );
 
   /* ------------------------- instructions & regulations -------------------------- */
   if (!started && !rulesAccepted) {
@@ -356,7 +387,10 @@ function TakeTest() {
             </div>
             <ul className="space-y-3">
               {rules.map((r, i) => (
-                <li key={i} className="bg-secondary/40 flex items-start gap-3 rounded-lg border p-3 text-sm">
+                <li
+                  key={i}
+                  className="bg-secondary/40 flex items-start gap-3 rounded-lg border p-3 text-sm"
+                >
                   <r.icon className="text-accent mt-0.5 size-4 shrink-0" />
                   <span>{r.text}</span>
                 </li>
@@ -394,8 +428,8 @@ function TakeTest() {
               <p className="label-mono text-accent">Your test</p>
               <h1 className="mt-2 text-2xl font-bold">{test.title}</h1>
               <p className="text-muted-foreground mt-2 text-sm">
-                You have {test.minutes + assignment.extensionMinutes} minutes. Once you start, the clock keeps
-                running, so find a quiet spot first.
+                You have {test.minutes + assignment.extensionMinutes} minutes. Once you start, the
+                clock keeps running, so find a quiet spot first.
               </p>
             </div>
             <div className="grid gap-2">
@@ -433,14 +467,17 @@ function TakeTest() {
               size="lg"
               className="w-full shadow-md"
               onClick={async () => {
-                const nameOk = name.trim().toLowerCase() === (student?.name ?? "").trim().toLowerCase();
+                const nameOk =
+                  name.trim().toLowerCase() === (student?.name ?? "").trim().toLowerCase();
                 const pinOk = !!student && pin.trim() === last4(student.phone);
                 if (!student || !nameOk || !pinOk) {
                   toast.error("Those details don't match. Check your name and phone number.");
                   return;
                 }
                 if (assignment.accessCodeUsed) {
-                  toast.error("This code has already been used. Ask the school to renew it for you.");
+                  toast.error(
+                    "This code has already been used. Ask the school to renew it for you.",
+                  );
                   return;
                 }
                 if (code.trim() !== assignment.accessCode) {
@@ -456,7 +493,10 @@ function TakeTest() {
                   status: "in-progress",
                   startedAt: new Date().toISOString(),
                   accessCodeUsed: true,
-                  log: [...assignment.log, { at: new Date().toISOString(), text: "Started the test" }],
+                  log: [
+                    ...assignment.log,
+                    { at: new Date().toISOString(), text: "Started the test" },
+                  ],
                 });
                 setNow(Date.now());
               }}
@@ -464,7 +504,8 @@ function TakeTest() {
               Start my test
             </Button>
             <p className="text-muted-foreground flex items-center justify-center gap-1.5 text-center text-xs">
-              <Maximize className="size-3.5" /> Opens in fullscreen. This link and code each work once only.
+              <Maximize className="size-3.5" /> Opens in fullscreen. This link and code each work
+              once only.
             </p>
           </CardContent>
         </Card>
@@ -565,6 +606,13 @@ function TakeTest() {
               </div>
             </div>
             <h1 className="text-xl font-semibold">{q?.text}</h1>
+            {q?.image && (
+              <img
+                src={q.image}
+                alt=""
+                className="max-h-72 w-full rounded-xl border object-contain"
+              />
+            )}
             <div className="grid gap-3">
               {q?.options.map((opt, i) => (
                 <button
@@ -583,7 +631,12 @@ function TakeTest() {
               ))}
             </div>
             <div className="flex items-center justify-between gap-3">
-              <Button variant="outline" size="lg" disabled={index === 0} onClick={() => setIndex(index - 1)}>
+              <Button
+                variant="outline"
+                size="lg"
+                disabled={index === 0}
+                onClick={() => setIndex(index - 1)}
+              >
                 Back
               </Button>
               {index < questions.length - 1 ? (
@@ -591,7 +644,12 @@ function TakeTest() {
                   Next question
                 </Button>
               ) : (
-                <Button size="lg" className="shadow-md" disabled={sending} onClick={() => setConfirmOpen(true)}>
+                <Button
+                  size="lg"
+                  className="shadow-md"
+                  disabled={sending}
+                  onClick={() => setConfirmOpen(true)}
+                >
                   {sending ? (
                     <>
                       <Loader2 className="size-4 animate-spin" /> Sending…
@@ -635,7 +693,8 @@ function TakeTest() {
                 className="w-full lg:hidden"
                 onClick={() => setPaperVisible((v) => !v)}
               >
-                <FileText className="size-4" /> {paperVisible ? "Hide test paper" : "Show test paper"}
+                <FileText className="size-4" />{" "}
+                {paperVisible ? "Hide test paper" : "Show test paper"}
               </Button>
             )}
             <Card className="shadow-lg">
@@ -660,7 +719,11 @@ function TakeTest() {
                   <Label htmlFor="photo">Or take a photo of your written answers</Label>
                   {photo ? (
                     <div className="relative overflow-hidden rounded-lg border">
-                      <img src={photo.src} alt={photo.name} className="max-h-64 w-full object-contain" />
+                      <img
+                        src={photo.src}
+                        alt={photo.name}
+                        className="max-h-64 w-full object-contain"
+                      />
                       <Button
                         type="button"
                         variant="secondary"
