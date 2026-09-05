@@ -7,6 +7,7 @@ import {
   SectionHeading,
   promoForPackage,
 } from "@/components/site/blocks";
+import { PaymentPolicySection } from "@/components/site/PaymentPolicy";
 import { fetchPackagesPageData, usePackages, usePromotions } from "@/lib/data";
 
 export const Route = createFileRoute("/packages")({
@@ -56,10 +57,9 @@ function Packages() {
             />
           ))}
         </div>
-        <p className="text-muted-foreground mt-8 text-sm">
-          Prices are in USD. 
-        </p>
+        <p className="text-muted-foreground mt-8 text-sm">Prices are in USD.</p>
       </Section>
+      <PaymentPolicySection />
       <CtaBand title="Not sure which package?" />
     </>
   );

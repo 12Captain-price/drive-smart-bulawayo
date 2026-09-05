@@ -12,6 +12,7 @@ import {
 import { Logo } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
 import { useSettings } from "@/lib/data";
+import { PAYMENTS_PAGE_LIVE } from "@/lib/paynow-server";
 
 /** Always visible on the desktop bar — the core marketing/browse path.
  *  Self-service utility pages (Pay, My Lessons) live in their own small
@@ -28,7 +29,7 @@ const primaryNav = [
 /** Self-service pages for people who already have a relationship with the
  *  school — kept visually distinct from marketing nav above. */
 const utilityNav = [
-  { to: "/pay", label: "Pay", icon: CreditCard },
+  ...(PAYMENTS_PAGE_LIVE ? [{ to: "/pay", label: "Pay", icon: CreditCard }] : []),
   { to: "/my-lessons", label: "My Lessons", icon: ListChecks },
 ];
 
@@ -54,7 +55,6 @@ const mobileNav = [
   { to: "/guide", label: "Help" },
 ];
 
-
 export function Header() {
   const [open, setOpen] = useState(false);
   const { settings } = useSettings();
@@ -62,7 +62,11 @@ export function Header() {
   return (
     <header className="bg-background/90 sticky top-0 z-40 border-b backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-        <Link to="/" className="transition-opacity hover:opacity-80" aria-label="Auto Driving School home">
+        <Link
+          to="/"
+          className="transition-opacity hover:opacity-80"
+          aria-label="Auto Driving School home"
+        >
           <Logo size={36} />
         </Link>
 

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  Construction,
   CreditCard,
   Download,
   ExternalLink,
@@ -29,7 +30,14 @@ import {
   useStudents,
   waLink,
 } from "@/lib/data";
-import { checkEcoCashPaymentStatus, initiatePayment, CARD_PAYMENTS_ENABLED, ONEMONEY_ENABLED, type PaymentMethod } from "@/lib/paynow-server";
+import {
+  checkEcoCashPaymentStatus,
+  initiatePayment,
+  CARD_PAYMENTS_ENABLED,
+  ONEMONEY_ENABLED,
+  PAYMENTS_PAGE_LIVE,
+  type PaymentMethod,
+} from "@/lib/paynow-server";
 import { cn } from "@/lib/utils";
 
 /** How often we poll Paynow for a status change. */
@@ -52,10 +60,12 @@ export const Route = createFileRoute("/pay")({
       { property: "og:title", content: "Pay for Your Lessons | Auto Driving School" },
       {
         property: "og:description",
-        content: "Pay with EcoCash right from your phone. Confirmed automatically, no reference to send.",
+        content:
+          "Pay with EcoCash right from your phone. Confirmed automatically, no reference to send.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      ...(PAYMENTS_PAGE_LIVE ? [] : [{ name: "robots", content: "noindex, nofollow" }]),
     ],
     links: [{ rel: "canonical", href: "/pay" }],
   }),
@@ -109,7 +119,12 @@ function Notice({
   };
   return (
     <div className={cn("flex items-start gap-3 rounded-xl border p-4 shadow-sm", toneStyles[tone])}>
-      <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full", iconStyles[tone])}>
+      <span
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-full",
+          iconStyles[tone],
+        )}
+      >
         <Icon className="size-4" />
       </span>
       <p className="text-sm leading-relaxed">{children}</p>
@@ -117,7 +132,49 @@ function Notice({
   );
 }
 
+/** Shown instead of the real payment form while we wait on Paynow to
+ *  approve our go-live request. Flip PAYMENTS_PAGE_LIVE in paynow-server.ts
+ *  once that's confirmed — the real form below is untouched and comes back
+ *  immediately. */
 function Pay() {
+  if (!PAYMENTS_PAGE_LIVE) return <PayComingSoon />;
+  return <PayForm />;
+}
+
+function PayComingSoon() {
+  const { settings } = useSettings();
+  return (
+    <Section>
+      <div className="mx-auto max-w-lg py-10 text-center">
+        <div className="bg-accent/15 text-accent mx-auto flex size-16 items-center justify-center rounded-full">
+          <Construction className="size-8" />
+        </div>
+        <h1 className="mt-6 text-2xl font-bold sm:text-3xl">Online payments are almost here</h1>
+        <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
+          We're finishing setup with our payment provider so you can pay instantly by EcoCash. This
+          page will be back shortly, in the meantime our team can take your payment reference over
+          WhatsApp and confirm it manually.
+        </p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Button asChild className="bg-success text-success-foreground hover:bg-success/90">
+            <a
+              href={waLink(settings.whatsapp, settings.waPaymentTemplate)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <MessageCircle className="size-4" /> WhatsApp us about payment
+            </a>
+          </Button>
+          <Button asChild variant="outline">
+            <a href={`tel:${settings.phone.replace(/\s/g, "")}`}>Call {settings.phone}</a>
+          </Button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function PayForm() {
   const { settings } = useSettings();
   const { items: packages } = usePackages();
   const { items: students } = useStudents();
@@ -224,7 +281,9 @@ function Pay() {
       packageId: s.packageId,
     }));
     const fromEnquiries: Person[] = enquiries
-      .filter((e) => !students.some((s) => s.phone.replace(/\D/g, "") === e.phone.replace(/\D/g, "")))
+      .filter(
+        (e) => !students.some((s) => s.phone.replace(/\D/g, "") === e.phone.replace(/\D/g, "")),
+      )
       .map((e) => ({ key: "e" + e.id, name: e.name, phone: e.phone, packageId: e.packageId }));
     return [...fromStudents, ...fromEnquiries];
   }, [students, enquiries]);
@@ -233,7 +292,11 @@ function Pay() {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return people
-      .filter((p) => p.name.toLowerCase().includes(q) || p.phone.replace(/\s/g, "").includes(q.replace(/\s/g, "")))
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.phone.replace(/\s/g, "").includes(q.replace(/\s/g, "")),
+      )
       .slice(0, 6);
   }, [people, query]);
 
@@ -418,10 +481,15 @@ function Pay() {
             <CheckCircle2 className="text-success size-16" />
             <h2 className="text-xl font-semibold">Payment confirmed!</h2>
             <p className="text-muted-foreground max-w-sm text-sm">
-              Your EcoCash payment went through. We've sent the details to WhatsApp for your records.
+              Your EcoCash payment went through. We've sent the details to WhatsApp for your
+              records.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
-              <Button asChild size="lg" className="bg-success text-success-foreground hover:bg-success/90">
+              <Button
+                asChild
+                size="lg"
+                className="bg-success text-success-foreground hover:bg-success/90"
+              >
                 <a href={waLink(settings.whatsapp, waMessage)} target="_blank" rel="noreferrer">
                   <MessageCircle className="size-4" /> Send us the details on WhatsApp
                 </a>
@@ -439,8 +507,12 @@ function Pay() {
                         ["Phone", phone.trim()],
                         ["Package", pkg?.name ?? "-"],
                         ["Amount paid", `$${amount}`],
-                        ...(isPartPayment ? ([["Full package price", `$${pkg!.price}`]] as [string, string][]) : []),
-                        ...(trimmedNote ? ([["What this was for", trimmedNote]] as [string, string][]) : []),
+                        ...(isPartPayment
+                          ? ([["Full package price", `$${pkg!.price}`]] as [string, string][])
+                          : []),
+                        ...(trimmedNote
+                          ? ([["What this was for", trimmedNote]] as [string, string][])
+                          : []),
                         [`${methodLabel(method)} reference`, paynowReference],
                         ["Status", "Confirmed"],
                       ]),
@@ -488,7 +560,12 @@ function Pay() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="pay-name">Your name</Label>
-                  <Input id="pay-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
+                  <Input
+                    id="pay-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={60}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="pay-phone">Phone / WhatsApp</Label>
@@ -529,7 +606,9 @@ function Pay() {
                       <span className="text-primary font-mono font-bold">${p.price}</span>
                     </div>
                     {!!p.lessons && (
-                      <span className="label-mono text-muted-foreground mt-1 block">{p.lessons} lessons</span>
+                      <span className="label-mono text-muted-foreground mt-1 block">
+                        {p.lessons} lessons
+                      </span>
                     )}
                   </button>
                 ))}
@@ -552,7 +631,9 @@ function Pay() {
                     </div>
                     <p className="text-muted-foreground text-xs">
                       Full price is ${pkg.price}
-                      {isPartPayment ? ". Paying a deposit or part-amount is fine, just enter it here." : "."}
+                      {isPartPayment
+                        ? ". Paying a deposit or part-amount is fine, just enter it here."
+                        : "."}
                     </p>
                   </div>
                   <div className="grid gap-2">
@@ -565,7 +646,8 @@ function Pay() {
                       placeholder="e.g. Deposit for 20 lessons, Beginner package"
                     />
                     <p className="text-muted-foreground text-xs">
-                      Shown on your receipt and WhatsApp confirmation, so we know exactly what it was for.
+                      Shown on your receipt and WhatsApp confirmation, so we know exactly what it
+                      was for.
                     </p>
                   </div>
                 </div>
@@ -580,34 +662,46 @@ function Pay() {
               {stage === "form" && (
                 <>
                   {(() => {
-                    const paymentOptions: { id: PaymentMethod; label: string; icon: typeof Smartphone }[] = [
+                    const paymentOptions: {
+                      id: PaymentMethod;
+                      label: string;
+                      icon: typeof Smartphone;
+                    }[] = [
                       { id: "ecocash", label: "EcoCash", icon: Smartphone },
-                      ...(ONEMONEY_ENABLED ? [{ id: "onemoney" as const, label: "OneMoney", icon: Smartphone }] : []),
-                      ...(CARD_PAYMENTS_ENABLED ? [{ id: "card" as const, label: "Visa/Mastercard", icon: CreditCard }] : []),
+                      ...(ONEMONEY_ENABLED
+                        ? [{ id: "onemoney" as const, label: "OneMoney", icon: Smartphone }]
+                        : []),
+                      ...(CARD_PAYMENTS_ENABLED
+                        ? [{ id: "card" as const, label: "Visa/Mastercard", icon: CreditCard }]
+                        : []),
                     ];
                     const gridColsClass =
-                      paymentOptions.length >= 3 ? "sm:grid-cols-3" : paymentOptions.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-1";
+                      paymentOptions.length >= 3
+                        ? "sm:grid-cols-3"
+                        : paymentOptions.length === 2
+                          ? "sm:grid-cols-2"
+                          : "sm:grid-cols-1";
                     return (
-                  <div className={cn("grid gap-2", gridColsClass)}>
-                    {paymentOptions.map((m) => (
-                      <button
-                        type="button"
-                        key={m.id}
-                        onClick={() => setMethod(m.id)}
-                        className={cn(
-                          "flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all active:scale-[0.99]",
-                          method === m.id
-                            ? "border-primary ring-primary/30 shadow-md ring-2"
-                            : "hover:border-primary/50 hover:bg-secondary/50 hover:shadow-sm",
-                          // EcoCash is the default/most-used rail — give it a
-                          // touch more visual weight when nothing's selected yet.
-                          m.id === "ecocash" && method === "ecocash" && "bg-primary/5",
-                        )}
-                      >
-                        <m.icon className="size-4" /> {m.label}
-                      </button>
-                    ))}
-                  </div>
+                      <div className={cn("grid gap-2", gridColsClass)}>
+                        {paymentOptions.map((m) => (
+                          <button
+                            type="button"
+                            key={m.id}
+                            onClick={() => setMethod(m.id)}
+                            className={cn(
+                              "flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all active:scale-[0.99]",
+                              method === m.id
+                                ? "border-primary ring-primary/30 shadow-md ring-2"
+                                : "hover:border-primary/50 hover:bg-secondary/50 hover:shadow-sm",
+                              // EcoCash is the default/most-used rail — give it a
+                              // touch more visual weight when nothing's selected yet.
+                              m.id === "ecocash" && method === "ecocash" && "bg-primary/5",
+                            )}
+                          >
+                            <m.icon className="size-4" /> {m.label}
+                          </button>
+                        ))}
+                      </div>
                     );
                   })()}
 
@@ -615,8 +709,8 @@ function Pay() {
                     <>
                       <Notice tone="info" icon={Smartphone}>
                         We'll send a {methodLabel(method)} prompt for{" "}
-                        <span className="font-mono font-bold">${amount || "0"}</span> straight to your
-                        phone. Enter your PIN there to confirm. No reference numbers to copy.
+                        <span className="font-mono font-bold">${amount || "0"}</span> straight to
+                        your phone. Enter your PIN there to confirm. No reference numbers to copy.
                       </Notice>
                       <div className="grid gap-2">
                         <div className="flex items-center justify-between gap-2">
@@ -656,8 +750,8 @@ function Pay() {
                   ) : (
                     <Notice tone="info" icon={CreditCard}>
                       You'll be taken to Paynow's secure page to enter your card details for{" "}
-                      <span className="font-mono font-bold">${amount || "0"}</span>, then brought back
-                      here automatically once it's done.
+                      <span className="font-mono font-bold">${amount || "0"}</span>, then brought
+                      back here automatically once it's done.
                     </Notice>
                   )}
 
@@ -678,7 +772,12 @@ function Pay() {
                     className="absolute left-[-9999px] h-0 w-0 opacity-0"
                   />
 
-                  <Button type="submit" size="lg" disabled={submitting} className="w-full shadow-md">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={submitting}
+                    className="w-full shadow-md"
+                  >
                     {submitting ? (
                       "Starting…"
                     ) : method === "card" ? (
@@ -701,7 +800,9 @@ function Pay() {
                 <div className="flex flex-col items-center gap-3 py-6 text-center">
                   <Loader2 className="text-primary size-10 animate-spin" />
                   <p className="font-medium">
-                    {method === "card" ? "Confirming your card payment…" : `Check your phone for the ${methodLabel(method)} prompt`}
+                    {method === "card"
+                      ? "Confirming your card payment…"
+                      : `Check your phone for the ${methodLabel(method)} prompt`}
                   </p>
                   <p className="text-muted-foreground max-w-sm text-sm">
                     {method === "card"
@@ -720,8 +821,8 @@ function Pay() {
                   <Smartphone className="text-muted-foreground size-10" />
                   <p className="font-medium">Still waiting on that one?</p>
                   <p className="text-muted-foreground max-w-sm text-sm">
-                    We haven't heard back yet. If you already approved it on your phone, give it a moment
-                    and try checking again. Otherwise start a fresh payment.
+                    We haven't heard back yet. If you already approved it on your phone, give it a
+                    moment and try checking again. Otherwise start a fresh payment.
                   </p>
                   <div className="flex gap-2">
                     <Button

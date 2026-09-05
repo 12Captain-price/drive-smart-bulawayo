@@ -24,9 +24,11 @@ import {
   LogOut,
   Mail,
   MessageCircle,
+  MessageCircleQuestion,
   Package as PackageIcon,
   Plus,
   Settings as SettingsIcon,
+  ShieldAlert,
   ShieldCheck,
   Star,
   Tag,
@@ -114,9 +116,11 @@ import {
   useAboutContent,
   useAboutSections,
   useEnquiries,
+  useFaqs,
   useInstructors,
   usePackages,
   usePayments,
+  usePaymentPolicy,
   usePhotos,
   usePromotions,
   useSettings,
@@ -131,10 +135,13 @@ import {
   type AboutSection,
   type AboutSectionType,
   type Enquiry,
+  type Faq,
   type Instructor,
   type Package,
   type Payment,
+  type PaymentPolicyContent,
   type PhotoCategory,
+  type PolicySection,
   type Promotion,
   type Student,
   type TeamMember,
@@ -181,6 +188,8 @@ const SECTIONS = [
   "Photos & Media",
   "Promotions",
   "Driving Tips",
+  "FAQs",
+  "Payment Policy",
   "Site Settings",
   "Staff Accounts",
   "Help",
@@ -207,6 +216,8 @@ const NAV_ICONS: Record<SectionName, typeof Inbox> = {
   "Photos & Media": ImageIcon,
   Promotions: Tag,
   "Driving Tips": BookOpen,
+  FAQs: MessageCircleQuestion,
+  "Payment Policy": ShieldAlert,
   "Site Settings": SettingsIcon,
   "Staff Accounts": ShieldCheck,
   Help: HelpCircle,
@@ -228,6 +239,8 @@ const NAV_GROUPS: { label: string; items: SectionName[] }[] = [
       "Photos & Media",
       "Promotions",
       "Driving Tips",
+      "FAQs",
+      "Payment Policy",
       "Site Settings",
     ],
   },
@@ -609,9 +622,9 @@ function Admin() {
             <div>
               <p className="font-medium">Data saved locally in this browser</p>
               <p className="text-muted-foreground text-sm">
-                Packages, testimonials, promotions, tips, enquiries, team, payments or site content
-                saved here haven't been moved to the shared database yet, they won't show up on
-                your phone or any other browser until you move them.
+                Packages, testimonials, promotions, tips, FAQs, enquiries, team, payments or site
+                content saved here haven't been moved to the shared database yet, they won't show up
+                on your phone or any other browser until you move them.
               </p>
             </div>
             <Button onClick={migrateAll} disabled={migrating}>
@@ -690,6 +703,8 @@ function Admin() {
           {section === "Photos & Media" && <PhotosPanel />}
           {section === "Promotions" && <PromotionsPanel />}
           {section === "Driving Tips" && <TipsPanel />}
+          {section === "FAQs" && <FaqPanel />}
+          {section === "Payment Policy" && <PaymentPolicyPanel />}
           {section === "Site Settings" && <SettingsPanel />}
           {section === "Staff Accounts" && isManager && (
             <StaffAccountsPanel
@@ -811,7 +826,9 @@ function EnquiriesPanel({ onScheduleNow }: { onScheduleNow: (studentId: string) 
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {student && <span className="text-success text-xs font-medium">Already enrolled</span>}
+                {student && (
+                  <span className="text-success text-xs font-medium">Already enrolled</span>
+                )}
                 <EnquiryDetailDialog
                   enquiry={e}
                   packages={packages}
@@ -927,10 +944,7 @@ function EnquiryDetailDialog({
         </div>
 
         <DialogFooter className="flex-wrap gap-2 sm:justify-between">
-          <Button
-            className="bg-success text-success-foreground hover:bg-success/90"
-            asChild
-          >
+          <Button className="bg-success text-success-foreground hover:bg-success/90" asChild>
             <a href={waLink(e.phone, message)} target="_blank" rel="noreferrer">
               <MessageCircle className="size-4" /> Send message
             </a>
@@ -1171,7 +1185,10 @@ function PackageCard({
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label>What's included (one per line)</Label>
-            <IncludesEditor value={p.includes} onChange={(includes) => update(p.id, { includes })} />
+            <IncludesEditor
+              value={p.includes}
+              onChange={(includes) => update(p.id, { includes })}
+            />
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label>Description</Label>
@@ -2056,6 +2073,293 @@ function TipCard({
               Save
             </Button>
             <Confirm label={t.title} onConfirm={() => guard(() => remove(t.id), "Tip deleted")} />
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+/* ----------------------------------- faqs ---------------------------------- */
+
+const FAQ_CATEGORIES = ["Licensing", "Lessons", "Logistics"];
+
+function FaqPanel() {
+  const { items, add, update, remove } = useFaqs();
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+  return (
+    <div className="space-y-4">
+      <Button
+        onClick={() =>
+          guard(() => {
+            const created = add({ category: "Lessons", question: "New question", answer: "" });
+            setJustCreatedId(created.id);
+          }, "Question added")
+        }
+      >
+        <Plus className="size-4" /> Add question
+      </Button>
+      {items.map((f) => (
+        <FaqCard
+          key={f.id}
+          faq={f}
+          update={update}
+          remove={remove}
+          defaultOpen={f.id === justCreatedId}
+        />
+      ))}
+      {items.length === 0 && (
+        <p className="text-muted-foreground text-sm">
+          No FAQs yet — add your first question above. These show up on the public /faq page,
+          grouped by category.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function FaqCard({
+  faq: f,
+  update,
+  remove,
+  defaultOpen = false,
+}: {
+  faq: Faq;
+  update: (id: string, patch: Partial<Faq>) => void;
+  remove: (id: string) => void;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className="overflow-hidden py-0 transition-shadow hover:shadow-md">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="hover:bg-secondary/40 flex w-full items-center gap-3 px-5 py-4 text-left transition-colors"
+      >
+        <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full font-semibold">
+          {f.question.charAt(0).toUpperCase() || "?"}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{f.question || "Untitled question"}</span>
+          <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+            {f.category} · {f.answer ? f.answer.slice(0, 50) : "No answer yet"}
+          </span>
+        </span>
+        {open ? (
+          <ChevronUp className="text-muted-foreground size-4 shrink-0" />
+        ) : (
+          <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+        )}
+      </button>
+
+      {open && (
+        <CardContent className="grid gap-3 border-t pt-5 pb-6">
+          <div className="grid gap-2">
+            <Label>Category</Label>
+            <Select value={f.category} onValueChange={(v) => update(f.id, { category: v })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FAQ_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Question</Label>
+            <Input
+              value={f.question}
+              onChange={(e) => update(f.id, { question: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Answer</Label>
+            <Textarea
+              rows={4}
+              value={f.answer}
+              onChange={(e) => update(f.id, { answer: e.target.value })}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => toast.success("Question saved")}>
+              Save
+            </Button>
+            <Confirm
+              label={f.question}
+              onConfirm={() => guard(() => remove(f.id), "Question deleted")}
+            />
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+/* ----------------------------- payment policy ------------------------------ */
+
+function PaymentPolicyPanel() {
+  const { content, save } = usePaymentPolicy();
+  const [justCreatedIndex, setJustCreatedIndex] = useState<number | null>(null);
+
+  const updateSection = (i: number, patch: Partial<PolicySection>) => {
+    save({ sections: content.sections.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
+  };
+
+  const removeSection = (i: number) => {
+    save({ sections: content.sections.filter((_, j) => j !== i) });
+  };
+
+  const moveSection = (i: number, direction: -1 | 1) => {
+    const j = i + direction;
+    if (j < 0 || j >= content.sections.length) return;
+    const next = [...content.sections];
+    [next[i], next[j]] = [next[j], next[i]];
+    save({ sections: next });
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardContent className="grid gap-4 pt-6">
+          <p className="text-muted-foreground text-sm">
+            This is the Payment & Anti-Fraud Policy shown at the bottom of the Packages & Pricing
+            page. Edit the intro below, or the numbered clauses further down, any time it needs to
+            change, there's no need for a code change.
+          </p>
+          <div className="grid gap-2">
+            <Label>Eyebrow (small label above the heading)</Label>
+            <Input value={content.eyebrow} onChange={(e) => save({ eyebrow: e.target.value })} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Heading</Label>
+            <Input value={content.heading} onChange={(e) => save({ heading: e.target.value })} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Subtitle</Label>
+            <Textarea
+              rows={2}
+              value={content.subtitle}
+              onChange={(e) => save({ subtitle: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Callout box text (shown above the clauses)</Label>
+            <Textarea
+              rows={3}
+              value={content.noticeText}
+              onChange={(e) => save({ noticeText: e.target.value })}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="mr-auto font-semibold">Numbered clauses</h2>
+        <Button
+          size="sm"
+          onClick={() =>
+            guard(() => {
+              save({
+                sections: [...content.sections, { title: "New clause", body: "" }],
+              });
+              setJustCreatedIndex(content.sections.length);
+            }, "Clause added")
+          }
+        >
+          <Plus className="size-4" /> Add clause
+        </Button>
+      </div>
+
+      {content.sections.length === 0 && (
+        <p className="text-muted-foreground text-sm">No clauses yet, add the first one above.</p>
+      )}
+
+      {content.sections.map((s, i) => (
+        <PolicyClauseCard
+          key={i}
+          section={s}
+          index={i}
+          total={content.sections.length}
+          update={(patch) => updateSection(i, patch)}
+          remove={() => guard(() => removeSection(i), "Clause deleted")}
+          moveUp={() => moveSection(i, -1)}
+          moveDown={() => moveSection(i, 1)}
+          defaultOpen={i === justCreatedIndex}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PolicyClauseCard({
+  section: s,
+  index,
+  total,
+  update,
+  remove,
+  moveUp,
+  moveDown,
+  defaultOpen = false,
+}: {
+  section: PolicySection;
+  index: number;
+  total: number;
+  update: (patch: Partial<PolicySection>) => void;
+  remove: () => void;
+  moveUp: () => void;
+  moveDown: () => void;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className="overflow-hidden py-0 transition-shadow hover:shadow-md">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="hover:bg-secondary/40 flex w-full items-center gap-3 px-5 py-4 text-left transition-colors"
+      >
+        <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full font-semibold">
+          {index + 1}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{s.title || "Untitled clause"}</span>
+          <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+            {s.body ? s.body.replace(/\n+/g, " ").slice(0, 60) : "No text yet"}
+          </span>
+        </span>
+        {open ? (
+          <ChevronUp className="text-muted-foreground size-4 shrink-0" />
+        ) : (
+          <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+        )}
+      </button>
+
+      {open && (
+        <CardContent className="grid gap-3 border-t pt-5 pb-6">
+          <div className="grid gap-2">
+            <Label>Clause title</Label>
+            <Input value={s.title} onChange={(e) => update({ title: e.target.value })} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Clause text (leave a blank line between paragraphs)</Label>
+            <Textarea rows={6} value={s.body} onChange={(e) => update({ body: e.target.value })} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => toast.success("Clause saved")}>
+              Save
+            </Button>
+            <Button size="sm" variant="outline" disabled={index === 0} onClick={moveUp}>
+              <ArrowUp className="size-4" /> Move up
+            </Button>
+            <Button size="sm" variant="outline" disabled={index === total - 1} onClick={moveDown}>
+              <ArrowDown className="size-4" /> Move down
+            </Button>
+            <Confirm label={s.title || "this clause"} onConfirm={remove} />
           </div>
         </CardContent>
       )}

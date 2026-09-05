@@ -206,6 +206,13 @@ export interface Tip {
   attachmentType?: string;
 }
 
+export interface Faq {
+  id: string;
+  category: string;
+  question: string;
+  answer: string;
+}
+
 export interface StatItem {
   value: string;
   label: string;
@@ -220,6 +227,23 @@ export interface AboutContent {
   storyHeading: string;
   storyParagraphs: string[];
   whyCards: WhyCard[];
+}
+
+/** One numbered clause of the Payment & Anti-Fraud Policy. `body` holds one or
+ *  more paragraphs separated by a blank line (matches how the admin textarea
+ *  edits it, and how PaymentPolicySection splits it back apart for display). */
+export interface PolicySection {
+  title: string;
+  body: string;
+}
+
+export interface PaymentPolicyContent {
+  eyebrow: string;
+  heading: string;
+  subtitle: string;
+  /** Short callout shown above the accordion (e.g. no-refund reminder). */
+  noticeText: string;
+  sections: PolicySection[];
 }
 
 export type AboutSectionType = "text" | "text-photo" | "photo";
@@ -496,6 +520,113 @@ export const defaultAboutContent: AboutContent = {
   ],
 };
 
+export const defaultPaymentPolicyContent: PaymentPolicyContent = {
+  eyebrow: "Please read before paying",
+  heading: "Payment & Anti-Fraud Policy",
+  subtitle:
+    "All payments to Auto Driving School are strictly non-refundable except where required by law. Full policy below.",
+  noticeText:
+    "By paying for lessons or a package, you agree to this policy in full, including the no-refund provision in section 13 and the option to nominate another eligible learner to use any remaining paid-for lessons instead of a refund.",
+  sections: [
+    {
+      title: "1. Purpose of this policy",
+      body: "This Payment Fraud and Anti-Fraud Policy (“Policy”) sets out the rules and procedures Auto Driving School (“Auto Driving School”, “we”, “us” or “our”) applies to prevent, identify, investigate and respond to fraudulent, suspicious or unauthorised payments made for our Services.\n\nThis Policy applies to all Learners, customers, parents or guardians, representatives and any other persons making or attempting to make payments to Auto Driving School.\n\nThe Policy applies to payments made through any payment platform, mobile money service, bank transfer, card payment, online payment facility or other payment method accepted by Auto Driving School.",
+    },
+    {
+      title: "2. Accepted payments",
+      body: "Auto Driving School may accept payments through payment methods and platforms made available or approved by Auto Driving School.\n\nA payment will only be regarded as successfully received when the payment has been successfully confirmed and verified through the relevant payment system or by Auto Driving School.\n\nA payment screenshot, SMS notification, receipt, reference number or other proof supplied by a customer does not by itself constitute confirmation that Auto Driving School has received the funds.\n\nAuto Driving School may delay providing or confirming a service until payment has been independently verified.",
+    },
+    {
+      title: "3. Payment verification",
+      body: "Auto Driving School may verify payments before confirming a driving lesson, confirming a training package, confirming a test booking, releasing a vehicle for a test, processing a legally required refund, crediting a Learner's account, or providing any other paid Service.\n\nVerification may include checking transaction reference numbers, payment amount, date and time, payment status, sender or payer details, recipient details, transaction history, and whether the payment has been reversed, cancelled, disputed or charged back, or any other information reasonably necessary to establish that the payment is genuine.\n\nAuto Driving School may contact the payment provider or relevant financial institution where reasonably necessary to verify a transaction.",
+    },
+    {
+      title: "4. False or manipulated payment proof",
+      body: "You must not provide Auto Driving School with a payment confirmation, receipt, screenshot, transaction reference or other document that is false, forged, altered, edited, manipulated, taken from another transaction, created using an image-editing application or other means, or misrepresented as a successful transaction when payment was not actually received.\n\nProviding false payment evidence will be treated as fraudulent conduct.\n\nAuto Driving School may immediately suspend or terminate the person's account, bookings and access to Services.",
+    },
+    {
+      title: "5. Unauthorised payments and stolen payment methods",
+      body: "You must only make payments using a payment method that You are authorised to use. You must not use a stolen bank card, another person's account without permission, another person's mobile-money account without authorisation, fraudulently obtained funds, compromised payment credentials, or a payment method obtained through deception or unlawful means.\n\nWhere Auto Driving School reasonably suspects that a payment was made using an unauthorised or stolen payment method, the transaction may be suspended or investigated.\n\nAuto Driving School may provide relevant transaction information to the appropriate payment provider, financial institution, law-enforcement agency or other competent authority where permitted or required by law.",
+    },
+    {
+      title: "6. Payment reversals, chargebacks and disputes",
+      body: "A payment that is subsequently reversed, cancelled, disputed or charged back may be treated as an unpaid transaction unless Auto Driving School determines otherwise.\n\nIf You initiate a chargeback or payment dispute after receiving the corresponding Services without first contacting Auto Driving School to resolve the matter, Auto Driving School may investigate the transaction.\n\nWhere a chargeback or reversal is determined to be fraudulent, abusive or made in bad faith, Auto Driving School may suspend Your account, cancel outstanding bookings, refuse further Services, recover the outstanding amount and reasonable related costs where permitted by law, and provide relevant information to the payment provider or appropriate authorities.\n\nNothing in this section prevents You from exercising any lawful rights available to You in relation to a genuinely unauthorised transaction or legitimate payment dispute.",
+    },
+    {
+      title: "7. Duplicate payments",
+      body: "If You accidentally make the same payment more than once, You should notify Auto Driving School and provide the relevant transaction references.\n\nAuto Driving School may verify the duplicate transactions before processing any adjustment. Any adjustment or refund for a duplicate payment will only be processed where required or permitted under Auto Driving School's applicable policies and applicable law.",
+    },
+    {
+      title: "8. Third-party payments",
+      body: "A Learner may, where permitted, have another person make a payment on their behalf. The person making the payment must be authorised to use the payment method, and the Learner remains responsible for ensuring that payments made on their behalf are legitimate.\n\nAuto Driving School may require additional information where the payer's identity, payment method or transaction appears unusual or suspicious. A payment made by a third party does not automatically give that third party ownership of the Learner's account, booking or Services.",
+    },
+    {
+      title: "9. Payment account and credential security",
+      body: "Where Auto Driving School provides an online account, booking account or payment-related account, You are responsible for keeping Your login credentials, passwords, PINs, payment information and other security details confidential.\n\nYou must not share Your password or PIN unnecessarily, allow another person to access Your account without authorisation, permit another person to impersonate You, or provide payment credentials to unauthorised persons.\n\nYou must immediately notify Auto Driving School if You believe Your account or payment information has been compromised.",
+    },
+    {
+      title: "10. Suspicious transactions",
+      body: "Auto Driving School may identify a transaction as suspicious where, among other things, the payment amount doesn't match the Service requested, multiple unusual transactions occur in a short period, a payment is repeatedly reversed or disputed, payment details don't match the Learner's information, a customer provides inconsistent or unverifiable transaction references, or there's evidence of manipulation, forgery, an unauthorised payment method, or other circumstances suggesting attempted fraud.\n\nA transaction being identified as suspicious does not necessarily mean that fraud has occurred. Auto Driving School may temporarily hold, delay or review the transaction while reasonable verification is carried out.",
+    },
+    {
+      title: "11. Fraud investigations",
+      body: "Where Auto Driving School suspects fraud, we may investigate the transaction and request additional information from the customer, such as proof of identity, proof of payment, transaction references, payment account details, or information about the source or circumstances of the payment.\n\nAuto Driving School will only request information it reasonably considers necessary for the investigation, subject to applicable law and our privacy obligations, and may suspend relevant Services while an investigation is ongoing.",
+    },
+    {
+      title: "12. Fraudulent refund claims",
+      body: "You must not request a refund by falsely claiming that a payment was not made, a Service was not received when it was, a payment was for a different amount, a payment was unauthorised when You authorised it, a payment was made twice when it wasn't, or a booking was cancelled when it wasn't.\n\nSubmitting a fraudulent refund claim constitutes a breach of this Policy and may constitute fraud or another unlawful act.",
+    },
+    {
+      title: "13. Strict no-refund policy",
+      body: "ALL PAYMENTS MADE TO AUTO DRIVING SCHOOL ARE STRICTLY NON-REFUNDABLE, except where a refund is expressly required by applicable law. This includes payments for driving lessons, training packages, test preparation, road- and oral-test preparation, vehicle hire for tests, bookings and administrative services.\n\nBy making a payment, the payer acknowledges that the payment represents a commitment to complete and use the Services paid for. Once payment has been made, the payer may not demand a refund merely because they change their mind, no longer wish to learn to drive, become unavailable, decide to use another school, no longer require the Services, are unable to continue for personal reasons, have changed personal or financial circumstances, have unused lessons in a package, or fail to attend scheduled lessons.\n\nInstead of a refund, the payer may nominate any eligible person of their choice — a friend, relative, spouse, partner or colleague — to use the remaining paid-for Services, subject to Auto Driving School's normal eligibility, licensing, safety and registration requirements. THE PAYER IS SOLELY RESPONSIBLE FOR FINDING AND NOMINATING THE REPLACEMENT LEARNER; Auto Driving School is not obligated to search for, recruit or recommend a replacement.\n\nThe replacement Learner is only entitled to the unused portion of the Services originally paid for — the transfer does not create any entitlement to additional lessons, and the payment remains subject to the applicable terms, booking requirements and any expiry period. No cash, mobile money, bank transfer or other refund will be made simply because the original payer no longer wishes or is able to use the Services.\n\nThis strict no-refund provision does not exclude or restrict any refund, cancellation or other right that cannot lawfully be excluded under applicable Zimbabwean law.",
+    },
+    {
+      title: "14. Account suspension and termination",
+      body: "Where Auto Driving School reasonably believes an account or transaction is connected with fraud or attempted fraud, we may, subject to applicable law, suspend the account, suspend or cancel bookings, restrict access to payment facilities, refuse further transactions or Services until payment is verified, terminate the customer relationship, and recover amounts legitimately owed.\n\nWhere reasonably possible we'll notify the affected customer of the reason for the action, though we may withhold information where disclosure could interfere with a fraud investigation, security measures or legal process.",
+    },
+    {
+      title: "15. Reporting suspected fraud",
+      body: "Customers should immediately report suspected fraudulent activity relating to their account or payments, including the Learner's name, the date, time and amount of the transaction, payment method, transaction reference, a description of the suspected activity, and any supporting evidence.\n\nCustomers should not attempt to investigate or confront a suspected fraudster themselves where doing so may create a safety or legal risk.",
+    },
+    {
+      title: "16. Cooperation with payment providers and authorities",
+      body: "Auto Driving School may cooperate with payment providers, banks, mobile-money operators, financial institutions, law-enforcement agencies, regulators and other competent authorities in connection with suspected fraud, and may, where permitted or required by law, share relevant transaction, account or identification information to investigate fraud, prevent further fraudulent transactions, recover funds, comply with legal obligations, or protect Auto Driving School, its customers and third parties.",
+    },
+    {
+      title: "17. No guarantee against fraud",
+      body: "Auto Driving School takes reasonable measures to prevent and detect fraudulent payments, but no payment system can guarantee that fraud will never occur.\n\nAuto Driving School will not be responsible for losses resulting solely from a customer's failure to protect their payment credentials, account information, passwords, PINs or other security information, except to the extent that liability cannot lawfully be excluded.",
+    },
+    {
+      title: "18. Customer responsibility",
+      body: "You are responsible for using only authorised payment methods, keeping your payment information accurate, not sharing sensitive payment credentials unnecessarily, providing genuine payment evidence, reporting suspicious transactions promptly, not attempting to obtain Services through fraudulent means, and cooperating reasonably with legitimate payment verification procedures.\n\nYou must not deliberately conceal information relevant to the legitimacy of a payment.",
+    },
+    {
+      title: "19. Fraudulent conduct and legal action",
+      body: "Auto Driving School reserves the right to take appropriate legal or other action against any person who engages in suspected fraud, attempted fraud, payment manipulation, identity fraud, theft, unauthorised use of payment methods or other unlawful financial conduct, which may include reporting the matter to the relevant payment provider, financial institution, law-enforcement agency or other competent authority.",
+    },
+    {
+      title: "20. Refund and payment dispute verification",
+      body: "Where a refund is claimed or a payment dispute is raised, Auto Driving School may verify the original payment, the identity of the person making the claim, the Service associated with the payment, whether the payment has been reversed or disputed, whether the Services have already been provided, whether there are outstanding amounts, and whether the claim is genuine and legally valid.\n\nBecause Auto Driving School operates a strict no-refund policy, no refund will be processed unless required by applicable law or an expressly applicable exception, and any legally required refund may be delayed while reasonable verification is completed.",
+    },
+    {
+      title: "21. Privacy and handling of payment information",
+      body: "Auto Driving School will handle payment and personal information in accordance with applicable law and its applicable privacy practices, using or disclosing it only where reasonably necessary to process or verify payments, prevent or investigate fraud, resolve disputes, process legally required refunds, comply with legal obligations, or protect Auto Driving School, its customers and third parties.\n\nAuto Driving School will not knowingly request a customer's confidential PIN, password or other security credential where it isn't necessary or appropriate for legitimate payment verification.",
+    },
+    {
+      title: "22. Changes to this policy",
+      body: "Auto Driving School may amend this Policy from time to time to reflect changes in payment systems, fraud risks, business practices, legal requirements or security procedures. Changes may be communicated via the website, our premises, WhatsApp, SMS, email or other reasonable channels.\n\nUnless otherwise stated or required by law, revised provisions may become effective once communicated, and continued use of our Services after that date constitutes acceptance of the revised Policy to the extent permitted by law.",
+    },
+    {
+      title: "23. Relationship with the Terms and Conditions",
+      body: "This Policy forms part of the Auto Driving School Terms and Conditions. Any fraudulent payment activity or attempted payment fraud may also constitute a breach of the Terms and Conditions. If there's a conflict between this Policy and another Auto Driving School policy, the provision more specifically applicable to payment fraud applies to the extent permitted by law.",
+    },
+    {
+      title: "24. Acknowledgement",
+      body: "By making or attempting to make a payment to Auto Driving School, You acknowledge and agree that payments must be genuine and authorised; a payment isn't considered received until verified; a screenshot alone doesn't prove funds were received; false or fraudulent payment evidence and unauthorised payment methods are prohibited; fraudulent refund claims are prohibited; payments are strictly non-refundable except where required by law; paying commits the payer to completing the Services or nominating another eligible person to use the remaining paid-for Services, with no obligation on Auto Driving School to find that replacement; reversed or disputed payments may result in Services being treated as unpaid; Auto Driving School may investigate suspicious transactions, suspend or terminate Services where fraud is reasonably suspected, cooperate with payment providers and authorities, and that fraudulent activity may result in legal action.",
+    },
+  ],
+};
+
 /* ------------------------------- tiny store ------------------------------- */
 
 const listeners = new Set<() => void>();
@@ -554,6 +685,7 @@ type RemoteKey =
   | "testimonials"
   | "promotions"
   | "tips"
+  | "faqs"
   | "enquiries"
   | "team"
   | "payments"
@@ -588,7 +720,11 @@ function useRemoteKey<T>(key: RemoteKey): T[] {
   // later. This is safe because everything stored here is public, shared
   // site content (photos, packages, promotions...), never anything
   // request- or user-specific.
-  return useSyncExternalStore(subscribe, () => readRemote<T>(key), () => readRemote<T>(key));
+  return useSyncExternalStore(
+    subscribe,
+    () => readRemote<T>(key),
+    () => readRemote<T>(key),
+  );
 }
 
 function reportRemoteError(action: string, key: string, err: unknown) {
@@ -1017,6 +1153,33 @@ export const useTips = () =>
     ascending: true,
     fromRow: tipFromRow,
     toRow: tipToRow,
+  });
+
+function faqFromRow(row: any): Faq {
+  return {
+    id: row.id,
+    category: row.category ?? "General",
+    question: row.question,
+    answer: row.answer,
+  };
+}
+
+function faqToRow(item: Partial<Faq>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (has(item, "category")) row.category = item.category || "General";
+  if (has(item, "question")) row.question = item.question;
+  if (has(item, "answer")) row.answer = item.answer;
+  return row;
+}
+
+export const useFaqs = () =>
+  useRemoteCollection<Faq>({
+    key: "faqs",
+    table: "faqs",
+    orderColumn: "created_at",
+    ascending: true,
+    fromRow: faqFromRow,
+    toRow: faqToRow,
   });
 
 function enquiryFromRow(row: any): Enquiry {
@@ -1553,6 +1716,18 @@ export async function fetchTipsData() {
   return { tips };
 }
 
+export async function fetchFaqData() {
+  const { data, error } = await supabase
+    .from("faqs")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const faqs = (data ?? []).map(faqFromRow);
+  writeRemote<Faq>("faqs", faqs);
+  remoteFetchState.set("faqs", "done");
+  return { faqs };
+}
+
 const PHOTOS_BUCKET = "photos";
 
 /**
@@ -1926,7 +2101,7 @@ export function useAboutSections() {
  * one shared record instead of a collection. Same optimistic-update /
  * rollback-on-error shape as the collections above.
  */
-type RemoteSingletonKey = "settings" | "aboutContent";
+type RemoteSingletonKey = "settings" | "aboutContent" | "paymentPolicy";
 
 const remoteSingletonCache = new Map<RemoteSingletonKey, unknown>();
 const remoteSingletonFetchState = new Map<RemoteSingletonKey, "loading" | "done">();
@@ -1997,6 +2172,19 @@ export function useAboutContent() {
 export function useSettings() {
   const { value, save } = useRemoteSingleton<SiteSettings>("settings", "settings", defaultSettings);
   return { settings: value, save };
+}
+
+/** Editable Payment & Anti-Fraud Policy shown at the bottom of /packages.
+ *  Same single-row (id, data jsonb) pattern as settings/about_content, so the
+ *  manager can update wording (e.g. a new clause, an amended no-refund term)
+ *  from the admin panel without needing a code change. */
+export function usePaymentPolicy() {
+  const { value, save } = useRemoteSingleton<PaymentPolicyContent>(
+    "paymentPolicy",
+    "payment_policy",
+    defaultPaymentPolicyContent,
+  );
+  return { content: value, save };
 }
 
 /* --------------------------------- helpers -------------------------------- */
@@ -2169,7 +2357,11 @@ export function formatWeeklySchedule(
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
     .map((l) => {
       const d = new Date(l.startsAt);
-      const day = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+      const day = d.toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      });
       const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
       return `${day}, ${time} (${l.minutes}min, ${l.lessonType})`;
     })
@@ -2507,7 +2699,8 @@ export function testReadyReason(t: Test): string | null {
     return null;
   }
   if (!t.paper) return "Upload a test paper";
-  if (!t.answerKey && !(t.answerKeyText ?? "").trim()) return "Add an answer key, upload a PDF or type the answers";
+  if (!t.answerKey && !(t.answerKeyText ?? "").trim())
+    return "Add an answer key, upload a PDF or type the answers";
   return null;
 }
 

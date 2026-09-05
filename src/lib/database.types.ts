@@ -68,8 +68,22 @@ export interface Database {
         }
       >;
       testimonials: Table<
-        { id: string; name: string; rating: number; comment: string; status: "pending" | "published"; created_at: string },
-        { id?: string; name: string; rating?: number; comment?: string; status?: "pending" | "published"; created_at?: string }
+        {
+          id: string;
+          name: string;
+          rating: number;
+          comment: string;
+          status: "pending" | "published";
+          created_at: string;
+        },
+        {
+          id?: string;
+          name: string;
+          rating?: number;
+          comment?: string;
+          status?: "pending" | "published";
+          created_at?: string;
+        }
       >;
       photos: Table<
         {
@@ -116,8 +130,26 @@ export interface Database {
         }
       >;
       tips: Table<
-        { id: string; title: string; body: string; attachment: string | null; attachment_name: string | null; attachment_type: string | null },
-        { id?: string; title: string; body?: string; attachment?: string | null; attachment_name?: string | null; attachment_type?: string | null }
+        {
+          id: string;
+          title: string;
+          body: string;
+          attachment: string | null;
+          attachment_name: string | null;
+          attachment_type: string | null;
+        },
+        {
+          id?: string;
+          title: string;
+          body?: string;
+          attachment?: string | null;
+          attachment_name?: string | null;
+          attachment_type?: string | null;
+        }
+      >;
+      faqs: Table<
+        { id: string; category: string; question: string; answer: string; created_at: string },
+        { id?: string; category?: string; question: string; answer?: string; created_at?: string }
       >;
       team: Table<
         { id: string; name: string; role: string; bio: string; photo: string | null },
@@ -145,6 +177,7 @@ export interface Database {
       >;
       settings: Table<{ id: number; data: Json }, { id?: number; data: Json }>;
       about_content: Table<{ id: number; data: Json }, { id?: number; data: Json }>;
+      payment_policy: Table<{ id: number; data: Json }, { id?: number; data: Json }>;
       enquiries: Table<
         {
           id: string;

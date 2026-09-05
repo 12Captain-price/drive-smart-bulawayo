@@ -89,11 +89,18 @@ function getPaynowCredentials() {
   const isPlaceholder =
     !id || !key || id === "your-paynow-integration-id" || key === "your-paynow-integration-key";
   if (isPlaceholder) return null;
-  return { id: id!, key: key!, email: email && !email.startsWith("payments@example") ? email : "payments@example.co.zw" };
+  return {
+    id: id!,
+    key: key!,
+    email: email && !email.startsWith("payments@example") ? email : "payments@example.co.zw",
+  };
 }
 
 function generateReference() {
-  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:TZ.]/g, "")
+    .slice(0, 14);
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `ADS-${stamp}-${rand}`;
 }
@@ -102,6 +109,16 @@ function generateReference() {
 
 export const PAYMENT_METHODS = ["ecocash", "onemoney", "card"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/**
+ * Master switch for the whole online-payments feature. We're waiting on
+ * Paynow to approve our go-live request, so the /pay page shows a friendly
+ * "under construction" message and every link to it (Header, Contact page)
+ * is hidden while this is false. All the real payment code below stays
+ * intact — flip this to true the moment Paynow approves the account and
+ * everything comes back online immediately, no other changes needed.
+ */
+export const PAYMENTS_PAGE_LIVE = false;
 
 /**
  * Card payments require your Paynow merchant account to be verified as a
@@ -162,7 +179,10 @@ const initiateInput = z
     },
     (data) => ({
       message:
-        data.method === "card" ? "" : (MOBILE_NUMBER_PATTERNS[data.method as "ecocash" | "onemoney"]?.hint ?? "Enter a valid mobile number"),
+        data.method === "card"
+          ? ""
+          : (MOBILE_NUMBER_PATTERNS[data.method as "ecocash" | "onemoney"]?.hint ??
+            "Enter a valid mobile number"),
       path: ["mobileNumber"],
     }),
   );
@@ -193,7 +213,12 @@ export const initiatePayment = createServerFn({ method: "POST" })
         poll_url: `mock://${reference}`,
       });
       if (error) return { ok: false, error: "Could not start the payment. Please try again." };
-      return { ok: true, reference, mock: true, instructions: "Test mode: no real charge will happen." };
+      return {
+        ok: true,
+        reference,
+        mock: true,
+        instructions: "Test mode: no real charge will happen.",
+      };
     }
 
     const siteUrl = process.env.SITE_URL || "https://example.co.zw";
@@ -333,7 +358,11 @@ export const checkEcoCashPaymentStatus = createServerFn({ method: "POST" })
 
     const parsed = parsePaynowResponse(responseText);
     if (!(await verifyPaynowHash(parsed, creds.key))) {
-      return { status: "sent", amount: Number(txn.amount), error: "Could not verify Paynow's response" };
+      return {
+        status: "sent",
+        amount: Number(txn.amount),
+        error: "Could not verify Paynow's response",
+      };
     }
 
     const paynowStatus = (parsed.status || "").toLowerCase();

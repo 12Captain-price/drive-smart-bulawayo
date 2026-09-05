@@ -39,8 +39,8 @@ import {
   waLink,
 } from "@/lib/data";
 import { placeholderContact } from "@/lib/placeholders";
+import { PAYMENTS_PAGE_LIVE } from "@/lib/paynow-server";
 import { cn } from "@/lib/utils";
-
 
 export const Route = createFileRoute("/contact")({
   component: Contact,
@@ -84,12 +84,12 @@ function Chip({
       disabled={disabled}
       title={title}
       className={cn(
-        "rounded-full border px-4 py-2 text-sm font-medium transition-colors active:scale-95",
+        "rounded-full border px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-95",
         disabled
           ? "text-muted-foreground cursor-not-allowed line-through opacity-50"
           : active
-            ? "border-primary bg-primary text-primary-foreground"
-            : "hover:bg-secondary hover:border-primary/50",
+            ? "border-primary bg-primary text-primary-foreground scale-105 shadow-sm"
+            : "hover:bg-secondary hover:border-primary/50 hover:scale-105",
       )}
     >
       {children}
@@ -100,51 +100,60 @@ function Chip({
 const STEPS = ["Package", "Your details", "Days", "Times", "Slots", "Review"];
 
 function Stepper({ step, onJump }: { step: number; onJump: (i: number) => void }) {
+  const progress = (step / (STEPS.length - 1)) * 100;
   return (
-    <div className="mb-8 flex items-center">
-      {STEPS.map((label, i) => {
-        const complete = i < step;
-        const current = i === step;
-        return (
-          <div key={label} className="flex flex-1 items-center last:flex-none">
-            <button
-              type="button"
-              onClick={() => complete && onJump(i)}
-              disabled={!complete}
-              className="flex flex-col items-center gap-1.5"
-            >
-              <span
-                className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
-                  complete
-                    ? "border-success bg-success text-success-foreground cursor-pointer"
-                    : current
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-muted-foreground/30 text-muted-foreground",
-                )}
+    <div className="mb-8">
+      <div className="bg-muted mb-5 h-1.5 w-full overflow-hidden rounded-full">
+        <div
+          className="from-primary to-accent h-full rounded-full bg-gradient-to-r transition-[width] duration-500 ease-out"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="flex items-center">
+        {STEPS.map((label, i) => {
+          const complete = i < step;
+          const current = i === step;
+          return (
+            <div key={label} className="flex flex-1 items-center last:flex-none">
+              <button
+                type="button"
+                onClick={() => complete && onJump(i)}
+                disabled={!complete}
+                className="flex flex-col items-center gap-1.5"
               >
-                {complete ? <Check className="size-4" /> : i + 1}
-              </span>
-              <span
-                className={cn(
-                  "hidden text-[11px] font-medium sm:block",
-                  current ? "text-foreground" : "text-muted-foreground",
-                )}
-              >
-                {label}
-              </span>
-            </button>
-            {i < STEPS.length - 1 && (
-              <span
-                className={cn(
-                  "mx-2 h-px flex-1 transition-colors",
-                  complete ? "bg-success" : "bg-muted-foreground/20",
-                )}
-              />
-            )}
-          </div>
-        );
-      })}
+                <span
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-all duration-300",
+                    complete
+                      ? "border-success bg-success text-success-foreground cursor-pointer"
+                      : current
+                        ? "border-primary bg-primary text-primary-foreground scale-110 shadow-md"
+                        : "border-muted-foreground/30 text-muted-foreground",
+                  )}
+                >
+                  {complete ? <Check className="size-4" /> : i + 1}
+                </span>
+                <span
+                  className={cn(
+                    "hidden text-[11px] font-medium sm:block",
+                    current ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {label}
+                </span>
+              </button>
+              {i < STEPS.length - 1 && (
+                <span
+                  className={cn(
+                    "mx-2 h-px flex-1 transition-colors",
+                    complete ? "bg-success" : "bg-muted-foreground/20",
+                  )}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -202,7 +211,6 @@ function Contact() {
   const slotUnavailable = (s: string) =>
     days.length > 0 && days.every((d) => taken.has(slotKey(d, s)));
   const clashes = findClashes(days, slots, taken);
-
 
   const toggle = (list: string[], setList: (v: string[]) => void, v: string) =>
     setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -302,12 +310,14 @@ function Contact() {
     URL.revokeObjectURL(url);
   }
 
-
-
   return (
     <>
       <div className="bg-secondary relative h-[38vh] min-h-[260px] w-full overflow-hidden">
-        <BannerImage src={banner?.src ?? placeholderContact} alt="Auto Driving School office" priority />
+        <BannerImage
+          src={banner?.src ?? placeholderContact}
+          alt="Auto Driving School office"
+          priority
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/25" />
         <div className="absolute inset-x-0 bottom-0 mx-auto max-w-6xl px-4 pb-8">
           <h1 className="text-3xl font-bold text-white sm:text-4xl">Book a Lesson</h1>
@@ -321,10 +331,12 @@ function Contact() {
         <div className="grid gap-10 lg:grid-cols-[1fr_360px]">
           <div>
             {done ? (
-              <Card>
+              <Card className="animate-in fade-in zoom-in-95 duration-300">
                 <CardContent className="space-y-5 py-10">
                   <div className="flex flex-col items-center gap-3 text-center">
-                    <CheckCircle2 className="text-success size-14" />
+                    <div className="bg-success/10 animate-in zoom-in spin-in-6 flex size-20 items-center justify-center rounded-full duration-500">
+                      <CheckCircle2 className="text-success size-14" />
+                    </div>
                     <h2 className="text-xl font-semibold">Thanks {done}!</h2>
                     <p className="text-muted-foreground max-w-sm text-sm">
                       We'll WhatsApp you within a few hours to confirm your lesson time.
@@ -348,7 +360,11 @@ function Contact() {
 
                   <div className="flex flex-wrap justify-center gap-3">
                     <Button asChild>
-                      <a href={waLink(settings.whatsapp, waMessage)} target="_blank" rel="noreferrer">
+                      <a
+                        href={waLink(settings.whatsapp, waMessage)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         <MessageCircle className="size-4" /> Send on WhatsApp
                       </a>
                     </Button>
@@ -362,7 +378,6 @@ function Contact() {
                   </pre>
                 </CardContent>
               </Card>
-
             ) : (
               <Card>
                 <CardContent className="pt-6">
@@ -376,164 +391,186 @@ function Contact() {
                     }}
                     className="space-y-6"
                   >
-                    {step === 0 && (
-                      <div>
-                        <h2 className="text-lg font-semibold">Choose a package</h2>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                          Pick the lesson package you'd like to book.
-                        </p>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                          {packages.map((p) => (
-                            <button
-                              type="button"
-                              key={p.id}
-                              onClick={() => setPackageId(p.id)}
-                              className={cn(
-                                "rounded-lg border p-4 text-left transition-all active:scale-[0.99]",
-                                packageId === p.id
-                                  ? "border-primary ring-primary/30 ring-2"
-                                  : "hover:border-primary/50 hover:bg-secondary/50",
-                              )}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="font-semibold">{p.name}</span>
-                                <span className="text-primary font-mono font-bold">${p.price}</span>
-                              </div>
-                              {!!p.lessons && (
-                                <span className="label-mono text-muted-foreground mt-1 block">
-                                  {p.lessons} lessons
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {step === 1 && (
-                      <div>
-                        <h2 className="text-lg font-semibold">Your details</h2>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                          So we know who's booking and how to reach you.
-                        </p>
-                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                          <div className="grid gap-2">
-                            <Label htmlFor="name">Your name</Label>
-                            <Input
-                              id="name"
-                              value={name}
-                              onChange={(e) => setName(e.target.value)}
-                              maxLength={60}
-                              autoFocus
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="phone">Phone / WhatsApp</Label>
-                            <Input
-                              id="phone"
-                              inputMode="tel"
-                              value={phone}
-                              onChange={(e) => setPhone(e.target.value)}
-                              maxLength={25}
-                              placeholder="078 000 0000"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {step === 2 && (
-                      <div>
-                        <h2 className="text-lg font-semibold">Preferred days</h2>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                          Which days suit you? Leave blank if you're flexible.
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {DAYS.map((d) => (
-                            <Chip key={d} active={days.includes(d)} onClick={() => toggle(days, setDays, d)}>
-                              {d}
-                            </Chip>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {step === 3 && (
-                      <div>
-                        <h2 className="text-lg font-semibold">Preferred time of day</h2>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                          Morning, afternoon or evening, pick as many as suit you.
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {TIMES.map((t) => (
-                            <Chip key={t} active={times.includes(t)} onClick={() => toggle(times, setTimes, t)}>
-                              {t}
-                            </Chip>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {step === 4 && (
-                      <div>
-                        <h2 className="text-lg font-semibold">Preferred time slots</h2>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                          Pick one or more lesson start times. Slots already booked on all your
-                          chosen days are crossed out.
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {TIME_SLOTS.map((s) => {
-                            const unavailable = slotUnavailable(s);
-                            return (
-                              <Chip
-                                key={s}
-                                active={slots.includes(s)}
-                                disabled={unavailable}
-                                title={unavailable ? "Already booked" : undefined}
-                                onClick={() => toggle(slots, setSlots, s)}
-                              >
-                                {s}
-                              </Chip>
-                            );
-                          })}
-                        </div>
-                        {clashes.length > 0 && (
-                          <p className="text-destructive mt-3 text-xs">
-                            Already booked: {clashes.join(", ")}, please choose another time.
+                    <div
+                      key={step}
+                      className="animate-in fade-in slide-in-from-right-3 duration-300"
+                    >
+                      {step === 0 && (
+                        <div>
+                          <h2 className="text-lg font-semibold">Choose a package</h2>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            Pick the lesson package you'd like to book.
                           </p>
-                        )}
-                      </div>
-                    )}
-
-                    {step === 5 && (
-                      <div>
-                        <h2 className="text-lg font-semibold">Review your request</h2>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                          Check everything looks right, then send your booking request.
-                        </p>
-
-                        <div className="mt-4 divide-y rounded-lg border">
-                          <PreviewRow label="Package" onEdit={() => setStep(0)}>
-                            {selectedPackage ? `${selectedPackage.name} · $${selectedPackage.price}` : "-"}
-                          </PreviewRow>
-                          <PreviewRow label="Name" onEdit={() => setStep(1)}>
-                            {name.trim() || "-"}
-                          </PreviewRow>
-                          <PreviewRow label="Phone" onEdit={() => setStep(1)}>
-                            {phone.trim() || "-"}
-                          </PreviewRow>
-                          <PreviewRow label="Days" onEdit={() => setStep(2)}>
-                            {days.length ? days.join(", ") : "Any day"}
-                          </PreviewRow>
-                          <PreviewRow label="Time of day" onEdit={() => setStep(3)}>
-                            {times.length ? times.join(", ") : "Any time"}
-                          </PreviewRow>
-                          <PreviewRow label="Lesson slots" onEdit={() => setStep(4)}>
-                            {slots.length ? slots.join(", ") : "Flexible"}
-                          </PreviewRow>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            {packages.map((p) => (
+                              <button
+                                type="button"
+                                key={p.id}
+                                onClick={() => setPackageId(p.id)}
+                                className={cn(
+                                  "rounded-lg border p-4 text-left transition-all duration-200 active:scale-[0.98]",
+                                  packageId === p.id
+                                    ? "border-primary ring-primary/30 bg-primary/[0.04] scale-[1.02] shadow-md ring-2"
+                                    : "hover:border-primary/50 hover:bg-secondary/50 hover:-translate-y-0.5 hover:shadow-sm",
+                                )}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="font-semibold">{p.name}</span>
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="text-primary font-mono font-bold">
+                                      ${p.price}
+                                    </span>
+                                    {packageId === p.id && (
+                                      <CheckCircle2 className="text-primary animate-in zoom-in size-4 duration-200" />
+                                    )}
+                                  </span>
+                                </div>
+                                {!!p.lessons && (
+                                  <span className="label-mono text-muted-foreground mt-1 block">
+                                    {p.lessons} lessons
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+
+                      {step === 1 && (
+                        <div>
+                          <h2 className="text-lg font-semibold">Your details</h2>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            So we know who's booking and how to reach you.
+                          </p>
+                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                              <Label htmlFor="name">Your name</Label>
+                              <Input
+                                id="name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                maxLength={60}
+                                autoFocus
+                              />
+                            </div>
+                            <div className="grid gap-2">
+                              <Label htmlFor="phone">Phone / WhatsApp</Label>
+                              <Input
+                                id="phone"
+                                inputMode="tel"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                maxLength={25}
+                                placeholder="078 000 0000"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {step === 2 && (
+                        <div>
+                          <h2 className="text-lg font-semibold">Preferred days</h2>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            Which days suit you? Leave blank if you're flexible.
+                          </p>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {DAYS.map((d) => (
+                              <Chip
+                                key={d}
+                                active={days.includes(d)}
+                                onClick={() => toggle(days, setDays, d)}
+                              >
+                                {d}
+                              </Chip>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {step === 3 && (
+                        <div>
+                          <h2 className="text-lg font-semibold">Preferred time of day</h2>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            Morning, afternoon or evening, pick as many as suit you.
+                          </p>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {TIMES.map((t) => (
+                              <Chip
+                                key={t}
+                                active={times.includes(t)}
+                                onClick={() => toggle(times, setTimes, t)}
+                              >
+                                {t}
+                              </Chip>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {step === 4 && (
+                        <div>
+                          <h2 className="text-lg font-semibold">Preferred time slots</h2>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            Pick one or more lesson start times. Slots already booked on all your
+                            chosen days are crossed out.
+                          </p>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {TIME_SLOTS.map((s) => {
+                              const unavailable = slotUnavailable(s);
+                              return (
+                                <Chip
+                                  key={s}
+                                  active={slots.includes(s)}
+                                  disabled={unavailable}
+                                  title={unavailable ? "Already booked" : undefined}
+                                  onClick={() => toggle(slots, setSlots, s)}
+                                >
+                                  {s}
+                                </Chip>
+                              );
+                            })}
+                          </div>
+                          {clashes.length > 0 && (
+                            <p className="text-destructive mt-3 text-xs">
+                              Already booked: {clashes.join(", ")}, please choose another time.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {step === 5 && (
+                        <div>
+                          <h2 className="text-lg font-semibold">Review your request</h2>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            Check everything looks right, then send your booking request.
+                          </p>
+
+                          <div className="mt-4 divide-y rounded-lg border">
+                            <PreviewRow label="Package" onEdit={() => setStep(0)}>
+                              {selectedPackage
+                                ? `${selectedPackage.name} · $${selectedPackage.price}`
+                                : "-"}
+                            </PreviewRow>
+                            <PreviewRow label="Name" onEdit={() => setStep(1)}>
+                              {name.trim() || "-"}
+                            </PreviewRow>
+                            <PreviewRow label="Phone" onEdit={() => setStep(1)}>
+                              {phone.trim() || "-"}
+                            </PreviewRow>
+                            <PreviewRow label="Days" onEdit={() => setStep(2)}>
+                              {days.length ? days.join(", ") : "Any day"}
+                            </PreviewRow>
+                            <PreviewRow label="Time of day" onEdit={() => setStep(3)}>
+                              {times.length ? times.join(", ") : "Any time"}
+                            </PreviewRow>
+                            <PreviewRow label="Lesson slots" onEdit={() => setStep(4)}>
+                              {slots.length ? slots.join(", ") : "Flexible"}
+                            </PreviewRow>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {/* honeypot, hidden from real users */}
                     <input
@@ -552,16 +589,26 @@ function Contact() {
                         variant="outline"
                         onClick={goBack}
                         disabled={step === 0}
+                        className="transition-transform active:scale-95"
                       >
                         <ChevronLeft className="size-4" /> Back
                       </Button>
 
                       {step === STEPS.length - 1 ? (
-                        <Button type="submit" size="lg" disabled={submitting || clashes.length > 0}>
+                        <Button
+                          type="submit"
+                          size="lg"
+                          disabled={submitting || clashes.length > 0}
+                          className="shadow-sm transition-all hover:shadow-md active:scale-95"
+                        >
                           {submitting ? "Sending…" : "Confirm & send request"}
                         </Button>
                       ) : (
-                        <Button type="submit" disabled={!stepValid[step]}>
+                        <Button
+                          type="submit"
+                          disabled={!stepValid[step]}
+                          className="transition-transform active:scale-95"
+                        >
                           Next <ChevronRight className="size-4" />
                         </Button>
                       )}
@@ -597,21 +644,33 @@ function Contact() {
                 <p className="text-muted-foreground flex items-center gap-2 text-sm">
                   <Clock className="size-4" /> {settings.hours}
                 </p>
-                <Button asChild className="bg-success text-success-foreground hover:bg-success/90 w-full shadow-sm transition-all hover:shadow-md">
+                <Button
+                  asChild
+                  className="bg-success text-success-foreground hover:bg-success/90 w-full shadow-sm transition-all hover:shadow-md"
+                >
                   <a
-                    href={settings.waGeneralTemplate ? waLink(settings.whatsapp, settings.waGeneralTemplate) : waLink(settings.whatsapp)}
+                    href={
+                      settings.waGeneralTemplate
+                        ? waLink(settings.whatsapp, settings.waGeneralTemplate)
+                        : waLink(settings.whatsapp)
+                    }
                     target="_blank"
                     rel="noreferrer"
                   >
                     <MessageCircle className="size-4" /> WhatsApp us
                   </a>
                 </Button>
-                <Button asChild variant="outline" className="w-full transition-all hover:shadow-md">
-                  <Link to="/pay">
-                    <Smartphone className="size-4" /> Pay for your lessons
-                  </Link>
-                </Button>
-
+                {PAYMENTS_PAGE_LIVE && (
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full transition-all hover:shadow-md"
+                  >
+                    <Link to="/pay">
+                      <Smartphone className="size-4" /> Pay for your lessons
+                    </Link>
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </aside>
