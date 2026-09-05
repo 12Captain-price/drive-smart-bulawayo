@@ -444,7 +444,7 @@ function Contact() {
                           </p>
                           <div className="mt-4 grid gap-4 sm:grid-cols-2">
                             <div className="grid gap-2">
-                              <Label htmlFor="name">Your name</Label>
+                              <Label htmlFor="name">Full name</Label>
                               <Input
                                 id="name"
                                 value={name}
