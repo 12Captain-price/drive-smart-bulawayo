@@ -18,46 +18,61 @@ async function requireManager(accessToken: string) {
   }
 }
 
-const LOOKBACK_DAYS = 14;
+// Sanity cap so a mistyped or malicious custom range can't force a huge scan
+// or a multi-thousand-point response.
+const MAX_RANGE_DAYS = 366;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface SiteTrafficStats {
+  /** All-time count, independent of the selected range. */
   totalViews: number;
-  last7DaysViews: number;
+  /** Count within [startDate, endDate], inclusive. */
+  periodViews: number;
   topPages: { path: string; views: number }[];
-  /** One entry per day for the last LOOKBACK_DAYS days, oldest first, zero-filled for days with no views. */
+  /** One entry per day in the selected range, oldest first, zero-filled for days with no views. */
   dailyViews: { date: string; views: number }[];
 }
 
 export const getSiteTraffic = createServerFn({ method: "POST" })
-  .validator(z.object({ accessToken: z.string() }))
+  .validator(
+    z.object({
+      accessToken: z.string(),
+      /** Inclusive range bounds, "YYYY-MM-DD", interpreted as calendar days. */
+      startDate: z.string().regex(DATE_RE),
+      endDate: z.string().regex(DATE_RE),
+    }),
+  )
   .handler(async ({ data }): Promise<SiteTrafficStats> => {
     await requireManager(data.accessToken);
 
-    const since = new Date();
-    since.setDate(since.getDate() - (LOOKBACK_DAYS - 1));
-    since.setHours(0, 0, 0, 0);
+    const start = new Date(`${data.startDate}T00:00:00.000Z`);
+    const end = new Date(`${data.endDate}T23:59:59.999Z`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      throw new Error("That date range doesn't look right.");
+    }
+    const spanDays = Math.min(
+      MAX_RANGE_DAYS,
+      Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1,
+    );
 
-    const [totalResult, recentResult] = await Promise.all([
+    const [totalResult, rangeResult] = await Promise.all([
       supabaseAdmin().from("page_views").select("id", { count: "exact", head: true }),
       supabaseAdmin()
         .from("page_views")
         .select("path, created_at")
-        .gte("created_at", since.toISOString())
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString())
         .returns<Pick<PageViewRow, "path" | "created_at">[]>(),
     ]);
 
     if (totalResult.error) throw new Error(totalResult.error.message);
-    if (recentResult.error) throw new Error(recentResult.error.message);
+    if (rangeResult.error) throw new Error(rangeResult.error.message);
 
-    const rows = recentResult.data ?? [];
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-    let last7DaysViews = 0;
+    const rows = rangeResult.data ?? [];
     const pageCounts = new Map<string, number>();
     const dayCounts = new Map<string, number>();
 
     for (const row of rows) {
-      if (new Date(row.created_at).getTime() >= sevenDaysAgo) last7DaysViews += 1;
       pageCounts.set(row.path, (pageCounts.get(row.path) ?? 0) + 1);
       const day = row.created_at.slice(0, 10);
       dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
@@ -69,16 +84,16 @@ export const getSiteTraffic = createServerFn({ method: "POST" })
       .slice(0, 8);
 
     const dailyViews: { date: string; views: number }[] = [];
-    for (let i = LOOKBACK_DAYS - 1; i >= 0; i -= 1) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
+    for (let i = 0; i < spanDays; i += 1) {
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i);
       const key = d.toISOString().slice(0, 10);
       dailyViews.push({ date: key, views: dayCounts.get(key) ?? 0 });
     }
 
     return {
       totalViews: totalResult.count ?? 0,
-      last7DaysViews,
+      periodViews: rows.length,
       topPages,
       dailyViews,
     };
