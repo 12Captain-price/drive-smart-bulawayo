@@ -26,11 +26,29 @@ function dayLabel(iso: string) {
   });
 }
 
-/** Shortens a path like "/payment-policy" to fit next to a bar without
- *  needing to widen the chart's left margin for every page name. */
-function shortPath(path: string, max = 20) {
-  if (path.length <= max) return path;
-  return path.slice(0, max - 1) + "…";
+/** Human-readable names for the "Views by page" chart, matching the labels
+ *  already used in the site's own header/footer nav — so what a manager
+ *  sees here matches what they'd click on the live site. Falls back to the
+ *  raw path for anything not in this list (e.g. a page added later that
+ *  this map hasn't been updated for yet). */
+const PAGE_LABELS: Record<string, string> = {
+  "/": "Home",
+  "/about": "About",
+  "/packages": "Packages & Pricing",
+  "/gallery": "Gallery",
+  "/contact": "Book a Lesson",
+  "/pay": "Pay",
+  "/tips": "Driving Tips",
+  "/faq": "FAQ",
+  "/guide": "Help",
+  "/terms": "Terms and Conditions",
+  "/payment-policy": "Payment & Anti-Fraud Policy",
+};
+
+function pageLabel(path: string, max = 26) {
+  const known = PAGE_LABELS[path];
+  if (known) return known;
+  return path.length <= max ? path : path.slice(0, max - 1) + "…";
 }
 
 interface IncomingView {
@@ -158,7 +176,7 @@ export function SiteTrafficPanel({ accessToken }: { accessToken: string }) {
   const dailyData = stats.dailyViews.map((d) => ({ label: dayLabel(d.date), views: d.views }));
   const pageData = [...stats.topPages]
     .sort((a, b) => a.views - b.views) // ascending so the biggest bar ends up on top
-    .map((p) => ({ path: p.path, label: shortPath(p.path), views: p.views }));
+    .map((p) => ({ path: p.path, label: pageLabel(p.path), views: p.views }));
 
   const updatedText = lastUpdated
     ? (() => {
@@ -259,7 +277,7 @@ export function SiteTrafficPanel({ accessToken }: { accessToken: string }) {
                   <YAxis
                     type="category"
                     dataKey="label"
-                    width={130}
+                    width={160}
                     tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
                     tickLine={false}
                     axisLine={false}
@@ -268,7 +286,6 @@ export function SiteTrafficPanel({ accessToken }: { accessToken: string }) {
                     contentStyle={tooltipStyle}
                     cursor={{ fill: "var(--color-secondary)" }}
                     formatter={(value: number) => [value, "Views"]}
-                    labelFormatter={(_, payload) => payload?.[0]?.payload?.path ?? ""}
                   />
                   <Bar dataKey="views" fill="var(--color-accent)" radius={[0, 4, 4, 0]} />
                 </BarChart>
