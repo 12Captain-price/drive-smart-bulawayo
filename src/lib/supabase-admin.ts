@@ -24,6 +24,13 @@ export interface PaynowTransactionRow {
   updated_at: string;
 }
 
+export interface PageViewRow {
+  id: number;
+  path: string;
+  referrer: string | null;
+  created_at: string;
+}
+
 interface AdminDatabase {
   public: {
     Tables: {
@@ -32,6 +39,17 @@ interface AdminDatabase {
         Insert: Partial<PaynowTransactionRow> &
           Pick<PaynowTransactionRow, "reference" | "name" | "phone" | "package_id" | "amount">;
         Update: Partial<PaynowTransactionRow>;
+        Relationships: [];
+      };
+      /**
+       * page_views has no anon SELECT policy (see supabase/page-views.sql),
+       * so the Admin "Site Traffic" panel reads it here, through the
+       * service-role key, instead of through the browser's anon client.
+       */
+      page_views: {
+        Row: PageViewRow;
+        Insert: Pick<PageViewRow, "path"> & Partial<PageViewRow>;
+        Update: Partial<PageViewRow>;
         Relationships: [];
       };
     };

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CtaBand,
   PackageCard,
@@ -7,7 +7,6 @@ import {
   SectionHeading,
   promoForPackage,
 } from "@/components/site/blocks";
-import { PaymentPolicySection } from "@/components/site/PaymentPolicy";
 import { fetchPackagesPageData, usePackages, usePromotions } from "@/lib/data";
 
 export const Route = createFileRoute("/packages")({
@@ -57,9 +56,18 @@ function Packages() {
             />
           ))}
         </div>
-        <p className="text-muted-foreground mt-8 text-sm">Prices are in USD.</p>
+        <p className="text-muted-foreground mt-8 text-sm">
+          Prices are in USD. By paying, you agree to our{" "}
+          <Link to="/terms" className="hover:text-primary underline underline-offset-2">
+            Terms and Conditions
+          </Link>{" "}
+          and{" "}
+          <Link to="/payment-policy" className="hover:text-primary underline underline-offset-2">
+            Payment & Anti-Fraud Policy
+          </Link>
+          .
+        </p>
       </Section>
-      <PaymentPolicySection />
       <CtaBand title="Not sure which package?" />
     </>
   );

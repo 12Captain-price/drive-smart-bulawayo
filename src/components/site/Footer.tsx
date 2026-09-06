@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Clock, MapPin, Phone } from "lucide-react";
 import { Logo } from "./Logo";
-import { useSettings, waLink, SITE_NAME } from "@/lib/data";
+import { useSettings, waLink } from "@/lib/data";
 
 export function Footer() {
   const { settings } = useSettings();
@@ -59,6 +59,8 @@ export function Footer() {
             {[
               { to: "/about", label: "About" },
               { to: "/packages", label: "Packages & Pricing" },
+              { to: "/terms", label: "Terms and Conditions" },
+              { to: "/payment-policy", label: "Payment & Anti-Fraud Policy" },
               { to: "/gallery", label: "Gallery" },
               { to: "/tips", label: "Driving Tips" },
               { to: "/faq", label: "FAQ" },
@@ -75,14 +77,7 @@ export function Footer() {
       </div>
 
       <div className="text-muted-foreground border-t px-4 py-5 text-center text-xs">
-        © {new Date().getFullYear()} {SITE_NAME}, Bulawayo ·{" "}
-        <Link to="/my-lessons" className="hover:text-foreground transition-colors">
-          My Lessons
-        </Link>{" "}
-        ·{" "}
-        <Link to="/admin" className="hover:text-foreground transition-colors">
-          Admin
-        </Link>
+        © {new Date().getFullYear()} {settings.footerText}
       </div>
     </footer>
   );

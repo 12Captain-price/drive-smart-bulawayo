@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  Activity,
   ArrowDown,
   ArrowUp,
   BookOpen,
@@ -86,6 +87,7 @@ import { SchedulePanel } from "@/components/admin/SchedulePanel";
 import { HelpPanel } from "@/components/admin/HelpPanel";
 import { OverviewPanel } from "@/components/admin/OverviewPanel";
 import { StaffAccountsPanel } from "@/components/admin/StaffAccountsPanel";
+import { SiteTrafficPanel } from "@/components/admin/SiteTrafficPanel";
 import { resolveLoginEmail } from "@/lib/staff-auth-server";
 import { downloadSpreadsheet, parseCsv, printTable, type Row } from "@/lib/docs";
 import { printPaymentReceipt, printStudentProfile } from "@/lib/receipts";
@@ -121,6 +123,7 @@ import {
   usePackages,
   usePayments,
   usePaymentPolicy,
+  useTerms,
   usePhotos,
   usePromotions,
   useSettings,
@@ -175,6 +178,7 @@ const origin = () => (typeof window === "undefined" ? "" : window.location.origi
 
 const SECTIONS = [
   "Overview",
+  "Site Traffic",
   "Enquiries",
   "Students",
   "Schedule",
@@ -190,6 +194,7 @@ const SECTIONS = [
   "Driving Tips",
   "FAQs",
   "Payment Policy",
+  "Terms and Conditions",
   "Site Settings",
   "Staff Accounts",
   "Help",
@@ -203,6 +208,7 @@ const PAYMENTS_LAST_SEEN_KEY = "ads-admin-payments-last-seen";
 /** Icon shown next to each section in the sidebar. */
 const NAV_ICONS: Record<SectionName, typeof Inbox> = {
   Overview: LayoutDashboard,
+  "Site Traffic": Activity,
   Enquiries: Inbox,
   Students: GraduationCap,
   Schedule: CalendarClock,
@@ -218,6 +224,7 @@ const NAV_ICONS: Record<SectionName, typeof Inbox> = {
   "Driving Tips": BookOpen,
   FAQs: MessageCircleQuestion,
   "Payment Policy": ShieldAlert,
+  "Terms and Conditions": FileText,
   "Site Settings": SettingsIcon,
   "Staff Accounts": ShieldCheck,
   Help: HelpCircle,
@@ -226,7 +233,8 @@ const NAV_ICONS: Record<SectionName, typeof Inbox> = {
 /** Groups the flat SECTIONS list into labelled clusters for the sidebar —
  *  purely a display grouping, doesn't change routing or SECTIONS itself. */
 const NAV_GROUPS: { label: string; items: SectionName[] }[] = [
-  { label: "Overview", items: ["Overview"] },
+  // "Site Traffic" is filtered out of this group for non-managers at render time.
+  { label: "Overview", items: ["Overview", "Site Traffic"] },
   { label: "Operations", items: ["Enquiries", "Students", "Schedule", "Payments", "Tests"] },
   {
     label: "Content & site",
@@ -241,6 +249,7 @@ const NAV_GROUPS: { label: string; items: SectionName[] }[] = [
       "Driving Tips",
       "FAQs",
       "Payment Policy",
+      "Terms and Conditions",
       "Site Settings",
     ],
   },
@@ -637,7 +646,9 @@ function Admin() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[230px_1fr] lg:items-start lg:gap-8">
         <nav className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           {NAV_GROUPS.map((group) => {
-            const items = group.items.filter((s) => s !== "Staff Accounts" || isManager);
+            const items = group.items.filter(
+              (s) => (s !== "Staff Accounts" && s !== "Site Traffic") || isManager,
+            );
             if (items.length === 0) return null;
             return (
               <div key={group.label} className="mb-4 last:mb-0">
@@ -684,6 +695,9 @@ function Admin() {
         </nav>
         <div className="min-w-0">
           {section === "Overview" && <OverviewPanel />}
+          {section === "Site Traffic" && isManager && (
+            <SiteTrafficPanel accessToken={session.access_token} />
+          )}
           {section === "Enquiries" && <EnquiriesPanel onScheduleNow={goToSchedule} />}
           {section === "Students" && <StudentsPanel />}
           {section === "Schedule" && (
@@ -705,6 +719,7 @@ function Admin() {
           {section === "Driving Tips" && <TipsPanel />}
           {section === "FAQs" && <FaqPanel />}
           {section === "Payment Policy" && <PaymentPolicyPanel />}
+          {section === "Terms and Conditions" && <TermsPanel />}
           {section === "Site Settings" && <SettingsPanel />}
           {section === "Staff Accounts" && isManager && (
             <StaffAccountsPanel
@@ -2202,8 +2217,19 @@ function FaqCard({
 
 /* ----------------------------- payment policy ------------------------------ */
 
-function PaymentPolicyPanel() {
-  const { content, save } = usePaymentPolicy();
+/** Shared editor for a full-page policy document (Payment & Anti-Fraud
+ *  Policy, Terms and Conditions) — an intro form + a reorderable list of
+ *  numbered clauses. Both PaymentPolicyPanel and TermsPanel below are thin
+ *  wrappers around this, just pointing it at their own content/save pair. */
+function PolicyPagePanel({
+  content,
+  save,
+  intro,
+}: {
+  content: PaymentPolicyContent;
+  save: (patch: Partial<PaymentPolicyContent>) => void;
+  intro: string;
+}) {
   const [justCreatedIndex, setJustCreatedIndex] = useState<number | null>(null);
 
   const updateSection = (i: number, patch: Partial<PolicySection>) => {
@@ -2226,11 +2252,7 @@ function PaymentPolicyPanel() {
     <div className="space-y-6">
       <Card>
         <CardContent className="grid gap-4 pt-6">
-          <p className="text-muted-foreground text-sm">
-            This is the Payment & Anti-Fraud Policy shown at the bottom of the Packages & Pricing
-            page. Edit the intro below, or the numbered clauses further down, any time it needs to
-            change, there's no need for a code change.
-          </p>
+          <p className="text-muted-foreground text-sm">{intro}</p>
           <div className="grid gap-2">
             <Label>Eyebrow (small label above the heading)</Label>
             <Input value={content.eyebrow} onChange={(e) => save({ eyebrow: e.target.value })} />
@@ -2293,6 +2315,28 @@ function PaymentPolicyPanel() {
         />
       ))}
     </div>
+  );
+}
+
+function PaymentPolicyPanel() {
+  const { content, save } = usePaymentPolicy();
+  return (
+    <PolicyPagePanel
+      content={content}
+      save={save}
+      intro="This is the Payment & Anti-Fraud Policy, shown on its own page at /payment-policy (linked from the footer, not on the Packages & Pricing page itself). Edit the intro below, or the numbered clauses further down, any time it needs to change, there's no need for a code change."
+    />
+  );
+}
+
+function TermsPanel() {
+  const { content, save } = useTerms();
+  return (
+    <PolicyPagePanel
+      content={content}
+      save={save}
+      intro="This is the Terms and Conditions, shown on its own page at /terms (linked from the footer). The starter wording is a first draft, not legal advice — worth a lawyer's review before you rely on it. Edit the intro below, or the numbered clauses further down, any time it needs to change."
+    />
   );
 }
 
@@ -2399,6 +2443,15 @@ function SettingsPanel() {
           <Textarea value={settings.tagline} onChange={(e) => save({ tagline: e.target.value })} />
         </div>
         <div className="grid gap-2 sm:col-span-2">
+          <Label>
+            Footer text (shown next to "© {new Date().getFullYear()}" at the very bottom)
+          </Label>
+          <Input
+            value={settings.footerText}
+            onChange={(e) => save({ footerText: e.target.value })}
+          />
+        </div>
+        <div className="grid gap-2 sm:col-span-2">
           <Label>WhatsApp message: general enquiry links</Label>
           <Textarea
             rows={2}
@@ -2441,8 +2494,8 @@ function SettingsPanel() {
             onChange={(e) => save({ waPackageHelpTemplate: e.target.value })}
           />
           <p className="text-muted-foreground text-xs">
-            Shown as a link on the booking page's package step, for learners who aren't sure
-            which package to pick.
+            Shown as a link on the booking page's package step, for learners who aren't sure which
+            package to pick.
           </p>
         </div>
 

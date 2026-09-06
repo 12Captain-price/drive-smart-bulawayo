@@ -237,7 +237,12 @@ export interface PolicySection {
   body: string;
 }
 
-export interface PaymentPolicyContent {
+/** Shared shape for a full-page policy document rendered as an intro +
+ *  numbered-clause accordion (see PolicyAccordion). Payment & Anti-Fraud
+ *  Policy and Terms and Conditions are both this same shape, each stored as
+ *  its own single-row Supabase record so they can be edited independently
+ *  from Admin. */
+export interface PolicyPageContent {
   eyebrow: string;
   heading: string;
   subtitle: string;
@@ -245,6 +250,9 @@ export interface PaymentPolicyContent {
   noticeText: string;
   sections: PolicySection[];
 }
+
+export type PaymentPolicyContent = PolicyPageContent;
+export type TermsContent = PolicyPageContent;
 
 export type AboutSectionType = "text" | "text-photo" | "photo";
 
@@ -304,6 +312,9 @@ export interface SiteSettings {
   waEnquiryFollowUpTemplate: string;
   /** WhatsApp message sent to a student or instructor with a whole week's lessons. Supports tokens. */
   waWeeklyPlanTemplate: string;
+  /** Text shown in the small copyright strip at the very bottom of the
+   *  footer, after the "© {year}" that's added automatically. */
+  footerText: string;
 }
 
 /* --------------------------------- defaults -------------------------------- */
@@ -396,6 +407,7 @@ export const defaultSettings: SiteSettings = {
     "",
     "Check anytime: {link}",
   ].join("\n"),
+  footerText: "Auto Driving School, Bulawayo",
 };
 
 const defaultPackages: Package[] = [
@@ -627,6 +639,93 @@ export const defaultPaymentPolicyContent: PaymentPolicyContent = {
     {
       title: "24. Acknowledgement",
       body: "By making or attempting to make a payment to Auto Driving School, You acknowledge and agree that payments must be genuine and authorised; a payment isn't considered received until verified; a screenshot alone doesn't prove funds were received; false or fraudulent payment evidence and unauthorised payment methods are prohibited; fraudulent refund claims are prohibited; payments are strictly non-refundable except where required by law; paying commits the payer to completing the Services or nominating another eligible person to use the remaining paid-for Services, with no obligation on Auto Driving School to find that replacement; reversed or disputed payments may result in Services being treated as unpaid; Auto Driving School may investigate suspicious transactions, suspend or terminate Services where fraud is reasonably suspected, cooperate with payment providers and authorities, and that fraudulent activity may result in legal action.",
+    },
+  ],
+};
+
+/** Starter Terms and Conditions — same admin-editable shape as the Payment
+ *  & Anti-Fraud Policy above. This is a reasonable first draft, not legal
+ *  advice; edit the wording from Admin → Content & site → Terms and
+ *  Conditions, ideally after a lawyer has looked it over. */
+export const defaultTermsContent: TermsContent = {
+  eyebrow: "Please read before enrolling",
+  heading: "Terms and Conditions",
+  subtitle:
+    "These Terms and Conditions govern enrolment in, and use of, driving lessons and related services provided by Auto Driving School.",
+  noticeText:
+    "By enrolling in lessons, booking a test or paying for any package, you agree to these Terms in full, including the Payment & Anti-Fraud Policy referenced in section 8.",
+  sections: [
+    {
+      title: "1. Acceptance of these Terms",
+      body: 'These Terms and Conditions ("Terms") govern every Learner\'s, customer\'s, parent\'s or guardian\'s use of driving lessons, training packages, test bookings, vehicle hire for tests and any other service offered by Auto Driving School ("Auto Driving School", "we", "us" or "our") in Bulawayo.\n\nBy enrolling, booking a lesson, making a payment or otherwise using our Services, you confirm that you have read, understood and agree to be bound by these Terms. If you do not agree, please do not use our Services.',
+    },
+    {
+      title: "2. About Auto Driving School",
+      body: "Auto Driving School is a Traffic Safety Council of Zimbabwe (TSCZ) registered driving school operating from 11th Ave & Joshua Nkomo St, Bulawayo, offering dual-control vehicle lessons, Highway Code preparation, yard and road training, and Vehicle Inspectorate Department (VID) test booking assistance.",
+    },
+    {
+      title: "3. Eligibility to learn",
+      body: "A Learner must meet the minimum age and any other legal requirement set by Zimbabwean law and the relevant licensing authority to hold a learner's licence and take driving lessons.\n\nWhere a Learner is a minor, a parent or legal guardian must provide consent and take responsibility for enrolment and payment on the Learner's behalf.",
+    },
+    {
+      title: "4. Enrolment and bookings",
+      body: "Enrolment is confirmed once the applicable package fee has been paid and verified in line with our Payment & Anti-Fraud Policy. Lesson and test bookings are subject to instructor and vehicle availability.\n\nWe will make reasonable efforts to accommodate a Learner's preferred days and times, but specific slots are not guaranteed until confirmed by Auto Driving School.",
+    },
+    {
+      title: "5. Scheduling, lateness and rescheduling",
+      body: "Learners are expected to arrive on time for scheduled lessons. Auto Driving School may treat a lesson as forfeited if a Learner is significantly late or does not arrive, without this creating any entitlement to a refund.\n\nWhere reasonably possible, Auto Driving School will try to accommodate a request to reschedule a lesson if raised with sufficient notice, but rescheduling is offered as a courtesy and is not guaranteed.",
+    },
+    {
+      title: "6. Vehicle use and learner conduct",
+      body: "Learners must follow the reasonable instructions of their instructor at all times for safety reasons, including instructions given during a lesson or test-preparation session.\n\nA Learner must not drive under the influence of alcohol or any impairing substance, must behave respectfully towards instructors and staff, and must take reasonable care of the vehicle. A Learner may be held responsible for damage caused by reckless conduct, tampering, or a clear disregard of instructions.",
+    },
+    {
+      title: "7. Instructor authority and safety",
+      body: "For everyone's safety, instructors may end a lesson early, decline to continue instruction, or postpone a VID test recommendation, where they reasonably believe it is unsafe to continue.\n\nAuto Driving School instructors will give an honest assessment of a Learner's readiness for a road test; Auto Driving School does not guarantee that a Learner will pass a VID test.",
+    },
+    {
+      title: "8. Fees and payment",
+      body: "All fees for lessons, packages, test bookings and related services must be paid in accordance with our Payment & Anti-Fraud Policy, which forms part of these Terms and is available on its own page. In particular, payments are strictly non-refundable except where required by applicable law, as set out in that Policy.",
+    },
+    {
+      title: "9. Test bookings and documentation",
+      body: "Where Auto Driving School assists with booking a VID road test, the Learner remains responsible for meeting the licensing authority's own eligibility, documentation and fee requirements. Auto Driving School is not responsible for delays, rescheduling or outcomes that are outside our control, including decisions made by the VID or other government authority.",
+    },
+    {
+      title: "10. Learner's responsibilities",
+      body: "A Learner is responsible for holding a valid learner's licence where required, disclosing any medical condition that could affect their ability to drive safely, attending scheduled lessons prepared and rested, and promptly informing Auto Driving School of any change in circumstances relevant to their training.",
+    },
+    {
+      title: "11. Liability and insurance",
+      body: "Auto Driving School's vehicles are insured in accordance with applicable law. To the fullest extent permitted by law, Auto Driving School's liability for any claim arising from the provision of Services is limited to the fees paid for the specific Service giving rise to the claim.\n\nNothing in these Terms excludes or limits liability that cannot lawfully be excluded or limited under applicable Zimbabwean law, including liability for death or personal injury caused by our negligence.",
+    },
+    {
+      title: "12. Force majeure",
+      body: "Auto Driving School is not liable for a delay or failure to provide a Service caused by circumstances reasonably beyond our control, including load-shedding, fuel shortages, extreme weather, road closures, government or VID scheduling changes, or other events of a similar nature. We will communicate any such disruption and reschedule affected lessons where reasonably possible.",
+    },
+    {
+      title: "13. Suspension or termination of services",
+      body: "Auto Driving School may suspend or terminate a Learner's enrolment where there is a serious breach of these Terms, including unsafe conduct, abusive behaviour towards staff or other learners, or suspected payment fraud under our Payment & Anti-Fraud Policy. Termination for a serious breach does not entitle the Learner to a refund of fees already paid.",
+    },
+    {
+      title: "14. Privacy and use of information",
+      body: "Auto Driving School collects and uses personal information (such as name, contact details, payment references and lesson records) only as reasonably necessary to provide our Services, communicate with Learners, process payments and comply with legal obligations, and does not sell personal information to third parties.",
+    },
+    {
+      title: "15. Intellectual property",
+      body: "All content on the Auto Driving School website and study materials, including text, logos, photographs and Highway Code preparation materials we produce, remains the property of Auto Driving School or its licensors and may not be copied or redistributed without permission.",
+    },
+    {
+      title: "16. Changes to these Terms",
+      body: "Auto Driving School may update these Terms from time to time to reflect changes in our Services, legal requirements or business practices. Updated Terms will be posted on this page, and continued use of our Services after an update constitutes acceptance of the revised Terms to the extent permitted by law.",
+    },
+    {
+      title: "17. Governing law and jurisdiction",
+      body: "These Terms are governed by the laws of Zimbabwe, and any dispute arising from these Terms or our Services is subject to the jurisdiction of the courts of Zimbabwe.",
+    },
+    {
+      title: "18. Contact us",
+      body: "Questions about these Terms can be directed to Auto Driving School at our premises, by phone, or via WhatsApp using the contact details on our Contact page.",
     },
   ],
 };
@@ -2105,7 +2204,7 @@ export function useAboutSections() {
  * one shared record instead of a collection. Same optimistic-update /
  * rollback-on-error shape as the collections above.
  */
-type RemoteSingletonKey = "settings" | "aboutContent" | "paymentPolicy";
+type RemoteSingletonKey = "settings" | "aboutContent" | "paymentPolicy" | "terms";
 
 const remoteSingletonCache = new Map<RemoteSingletonKey, unknown>();
 const remoteSingletonFetchState = new Map<RemoteSingletonKey, "loading" | "done">();
@@ -2178,10 +2277,11 @@ export function useSettings() {
   return { settings: value, save };
 }
 
-/** Editable Payment & Anti-Fraud Policy shown at the bottom of /packages.
- *  Same single-row (id, data jsonb) pattern as settings/about_content, so the
- *  manager can update wording (e.g. a new clause, an amended no-refund term)
- *  from the admin panel without needing a code change. */
+/** Editable Payment & Anti-Fraud Policy, shown on its own /payment-policy
+ *  page (linked from the footer, not embedded in /packages). Same single-row
+ *  (id, data jsonb) pattern as settings/about_content, so the manager can
+ *  update wording (e.g. a new clause, an amended no-refund term) from the
+ *  admin panel without needing a code change. */
 export function usePaymentPolicy() {
   const { value, save } = useRemoteSingleton<PaymentPolicyContent>(
     "paymentPolicy",
@@ -2189,6 +2289,53 @@ export function usePaymentPolicy() {
     defaultPaymentPolicyContent,
   );
   return { content: value, save };
+}
+
+/** Editable Terms and Conditions, shown on its own /terms page (linked from
+ *  the footer). Same single-row pattern as usePaymentPolicy above — see
+ *  defaultTermsContent for the starter wording. */
+export function useTerms() {
+  const { value, save } = useRemoteSingleton<TermsContent>(
+    "terms",
+    "terms_content",
+    defaultTermsContent,
+  );
+  return { content: value, save };
+}
+
+/** Paths excluded from page-view logging: the admin area itself (so a
+ *  manager checking analytics doesn't inflate their own numbers), and
+ *  student links that carry a private token in the URL — that token should
+ *  never end up sitting in an analytics table. */
+function isTrackablePath(pathname: string): boolean {
+  return !(
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/my-lessons") ||
+    pathname.startsWith("/results/") ||
+    pathname.startsWith("/test/")
+  );
+}
+
+/**
+ * Fire-and-forget page view log for the Admin "Site Traffic" panel.
+ * page_views only has an INSERT policy (see supabase/page-views.sql), so
+ * this anon-client call can add to the table but never read it back.
+ * Failures are swallowed — a missed page view logged to the console
+ * shouldn't surface an error toast to an ordinary site visitor.
+ */
+export function logPageView(pathname: string): void {
+  if (typeof window === "undefined" || !isTrackablePath(pathname)) return;
+  (async () => {
+    try {
+      const { error } = await (supabase.from("page_views") as any).insert({
+        path: pathname,
+        referrer: document.referrer || null,
+      });
+      if (error) throw error;
+    } catch (err) {
+      console.warn("Page view log failed:", err);
+    }
+  })();
 }
 
 /* --------------------------------- helpers -------------------------------- */

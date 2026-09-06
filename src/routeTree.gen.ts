@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TipsRouteImport } from './routes/tips'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as PaymentPolicyRouteImport } from './routes/payment-policy'
 import { Route as PayRouteImport } from './routes/pay'
 import { Route as PackagesRouteImport } from './routes/packages'
 import { Route as MyLessonsRouteImport } from './routes/my-lessons'
@@ -30,9 +32,19 @@ const TipsRoute = TipsRouteImport.update({
   path: '/tips',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentPolicyRoute = PaymentPolicyRouteImport.update({
+  id: '/payment-policy',
+  path: '/payment-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PayRoute = PayRouteImport.update({
@@ -112,7 +124,9 @@ export interface FileRoutesByFullPath {
   '/my-lessons': typeof MyLessonsRoute
   '/packages': typeof PackagesRoute
   '/pay': typeof PayRoute
+  '/payment-policy': typeof PaymentPolicyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/tips': typeof TipsRoute
   '/admin/reset-password': typeof AdminResetPasswordRoute
   '/results/$token': typeof ResultsTokenRoute
@@ -129,7 +143,9 @@ export interface FileRoutesByTo {
   '/my-lessons': typeof MyLessonsRoute
   '/packages': typeof PackagesRoute
   '/pay': typeof PayRoute
+  '/payment-policy': typeof PaymentPolicyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/tips': typeof TipsRoute
   '/admin/reset-password': typeof AdminResetPasswordRoute
   '/results/$token': typeof ResultsTokenRoute
@@ -147,7 +163,9 @@ export interface FileRoutesById {
   '/my-lessons': typeof MyLessonsRoute
   '/packages': typeof PackagesRoute
   '/pay': typeof PayRoute
+  '/payment-policy': typeof PaymentPolicyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/tips': typeof TipsRoute
   '/admin/reset-password': typeof AdminResetPasswordRoute
   '/results/$token': typeof ResultsTokenRoute
@@ -166,7 +184,9 @@ export interface FileRouteTypes {
     | '/my-lessons'
     | '/packages'
     | '/pay'
+    | '/payment-policy'
     | '/sitemap.xml'
+    | '/terms'
     | '/tips'
     | '/admin/reset-password'
     | '/results/$token'
@@ -183,7 +203,9 @@ export interface FileRouteTypes {
     | '/my-lessons'
     | '/packages'
     | '/pay'
+    | '/payment-policy'
     | '/sitemap.xml'
+    | '/terms'
     | '/tips'
     | '/admin/reset-password'
     | '/results/$token'
@@ -200,7 +222,9 @@ export interface FileRouteTypes {
     | '/my-lessons'
     | '/packages'
     | '/pay'
+    | '/payment-policy'
     | '/sitemap.xml'
+    | '/terms'
     | '/tips'
     | '/admin/reset-password'
     | '/results/$token'
@@ -218,7 +242,9 @@ export interface RootRouteChildren {
   MyLessonsRoute: typeof MyLessonsRoute
   PackagesRoute: typeof PackagesRoute
   PayRoute: typeof PayRoute
+  PaymentPolicyRoute: typeof PaymentPolicyRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  TermsRoute: typeof TermsRoute
   TipsRoute: typeof TipsRoute
   ResultsTokenRoute: typeof ResultsTokenRoute
   TestTokenRoute: typeof TestTokenRoute
@@ -233,11 +259,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TipsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment-policy': {
+      id: '/payment-policy'
+      path: '/payment-policy'
+      fullPath: '/payment-policy'
+      preLoaderRoute: typeof PaymentPolicyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pay': {
@@ -355,7 +395,9 @@ const rootRouteChildren: RootRouteChildren = {
   MyLessonsRoute: MyLessonsRoute,
   PackagesRoute: PackagesRoute,
   PayRoute: PayRoute,
+  PaymentPolicyRoute: PaymentPolicyRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  TermsRoute: TermsRoute,
   TipsRoute: TipsRoute,
   ResultsTokenRoute: ResultsTokenRoute,
   TestTokenRoute: TestTokenRoute,

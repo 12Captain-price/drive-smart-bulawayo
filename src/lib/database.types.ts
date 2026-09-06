@@ -178,6 +178,11 @@ export interface Database {
       settings: Table<{ id: number; data: Json }, { id?: number; data: Json }>;
       about_content: Table<{ id: number; data: Json }, { id?: number; data: Json }>;
       payment_policy: Table<{ id: number; data: Json }, { id?: number; data: Json }>;
+      terms_content: Table<{ id: number; data: Json }, { id?: number; data: Json }>;
+      page_views: Table<
+        { id: number; path: string; referrer: string | null; created_at: string },
+        { path: string; referrer?: string | null }
+      >;
       enquiries: Table<
         {
           id: string;
