@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { getSiteTraffic, type SiteTrafficStats } from "@/lib/site-traffic-server";
+import { toLocalDateKey } from "@/lib/timezone";
 
 const tooltipStyle = {
   background: "var(--color-card)",
@@ -122,7 +123,7 @@ function applyIncomingView(
   rangeEnd: string,
 ): SiteTrafficStats {
   const totalViews = prev.totalViews + 1;
-  const day = row.created_at.slice(0, 10);
+  const day = toLocalDateKey(row.created_at);
   if (day < rangeStart || day > rangeEnd) return { ...prev, totalViews };
 
   const dailyViews = prev.dailyViews.map((d) =>

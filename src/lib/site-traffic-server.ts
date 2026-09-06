@@ -9,6 +9,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin, type PageViewRow } from "./supabase-admin.ts";
+import { addDays, localDayEndUTC, localDayStartUTC, toLocalDateKey } from "./timezone.ts";
 
 async function requireManager(accessToken: string) {
   const { data, error } = await supabaseAdmin().auth.getUser(accessToken);
@@ -45,8 +46,8 @@ export const getSiteTraffic = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<SiteTrafficStats> => {
     await requireManager(data.accessToken);
 
-    const start = new Date(`${data.startDate}T00:00:00.000Z`);
-    const end = new Date(`${data.endDate}T23:59:59.999Z`);
+    const start = localDayStartUTC(data.startDate);
+    const end = localDayEndUTC(data.endDate);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
       throw new Error("That date range doesn't look right.");
     }
@@ -74,7 +75,7 @@ export const getSiteTraffic = createServerFn({ method: "POST" })
 
     for (const row of rows) {
       pageCounts.set(row.path, (pageCounts.get(row.path) ?? 0) + 1);
-      const day = row.created_at.slice(0, 10);
+      const day = toLocalDateKey(row.created_at);
       dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
     }
 
@@ -85,9 +86,7 @@ export const getSiteTraffic = createServerFn({ method: "POST" })
 
     const dailyViews: { date: string; views: number }[] = [];
     for (let i = 0; i < spanDays; i += 1) {
-      const d = new Date(start);
-      d.setUTCDate(d.getUTCDate() + i);
-      const key = d.toISOString().slice(0, 10);
+      const key = addDays(data.startDate, i);
       dailyViews.push({ date: key, views: dayCounts.get(key) ?? 0 });
     }
 
