@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarCheck2,
@@ -261,12 +261,13 @@ function ScheduleView({
   }
 
   const now = new Date();
+  const lessonEnd = (l: MyLesson) => new Date(new Date(l.startsAt).getTime() + l.minutes * 60_000);
   const scheduled = lessons.filter((l) => l.status === "scheduled");
   const upcoming = scheduled
-    .filter((l) => new Date(l.startsAt) > now)
+    .filter((l) => lessonEnd(l) > now)
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
   const awaitingUpdate = scheduled
-    .filter((l) => new Date(l.startsAt) <= now)
+    .filter((l) => lessonEnd(l) <= now)
     .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
   const history = lessons
     .filter((l) => l.status !== "scheduled")
@@ -282,6 +283,9 @@ function ScheduleView({
         <Sparkles className="text-accent size-4" />
         <p className="text-lg font-medium">Hi {greetingName.split(" ")[0]}, here's your schedule</p>
       </div>
+      <p className="text-muted-foreground/70 mt-1 text-xs">
+        This updates automatically, no need to refresh.
+      </p>
 
       {/* Stats overview */}
       <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 mt-5 grid grid-cols-3 gap-3 duration-500 delay-100">
@@ -378,6 +382,41 @@ function ScheduleView({
   );
 }
 
+/** Silently re-runs `fetcher` every 30s (and immediately whenever the tab
+ *  regains focus) so an admin update — a lesson marked completed, a note
+ *  added, a reschedule confirmed — shows up here without the visitor
+ *  re-entering their details. Failures are swallowed; the last good result
+ *  just stays on screen until the next successful tick. */
+function useLiveRefresh<T>(active: boolean, fetcher: () => Promise<T | null>, onUpdate: (r: T) => void) {
+  const fetcherRef = useRef(fetcher);
+  const onUpdateRef = useRef(onUpdate);
+  fetcherRef.current = fetcher;
+  onUpdateRef.current = onUpdate;
+
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const r = await fetcherRef.current();
+        if (!cancelled && r) onUpdateRef.current(r);
+      } catch {
+        // silent — keep showing the last known data, next tick retries
+      }
+    }
+    const id = setInterval(refresh, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [active]);
+}
+
 function StudentLookup() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -403,6 +442,12 @@ function StudentLookup() {
       setLoading(false);
     }
   }
+
+  useLiveRefresh(
+    !!result,
+    () => fetchMyLessonsAsStudent(name, phone),
+    (r) => setResult(r),
+  );
 
   if (result) {
     return (
@@ -475,6 +520,12 @@ function InstructorLookup() {
       setLoading(false);
     }
   }
+
+  useLiveRefresh(
+    !!result,
+    () => fetchMyLessonsAsInstructor(name, pin),
+    (r) => setResult(r),
+  );
 
   if (result) {
     return (
