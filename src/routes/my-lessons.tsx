@@ -211,7 +211,7 @@ function ScheduleView({
   const { settings } = useSettings();
 
   function rescheduleHref(l: MyLesson) {
-    if (role !== "student" || l.status !== "scheduled" || new Date(l.startsAt) <= new Date()) {
+    if (role !== "student" || l.status !== "scheduled") {
       return undefined;
     }
     const message = renderTemplate(settings.waRescheduleTemplate, {
