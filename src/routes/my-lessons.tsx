@@ -11,6 +11,8 @@ import {
   Clock,
   GraduationCap,
   ListChecks,
+  MessageCircle,
+  NotebookText,
   Sparkles,
   User,
   XCircle,
@@ -22,7 +24,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Section, SectionHeading } from "@/components/site/blocks";
 import { cn } from "@/lib/utils";
-import { errorMessage, fetchMyLessonsAsInstructor, fetchMyLessonsAsStudent, type MyLesson } from "@/lib/data";
+import {
+  errorMessage,
+  fetchMyLessonsAsInstructor,
+  fetchMyLessonsAsStudent,
+  renderTemplate,
+  useSettings,
+  waLink,
+  type MyLesson,
+} from "@/lib/data";
 
 export const Route = createFileRoute("/my-lessons")({
   component: MyLessons,
@@ -107,7 +117,16 @@ function StatPill({ icon: Icon, value, label }: { icon: typeof CheckCircle2; val
   );
 }
 
-function LessonRow({ lesson, otherParty }: { lesson: MyLesson; otherParty: string }) {
+function LessonRow({
+  lesson,
+  otherParty,
+  rescheduleHref,
+}: {
+  lesson: MyLesson;
+  otherParty: string;
+  /** Present only on the student view, for upcoming scheduled lessons. */
+  rescheduleHref?: string;
+}) {
   const meta = STATUS_META[lesson.status];
   const StatusIcon = meta.icon;
   const relative = relativeLabel(lesson.startsAt);
@@ -136,6 +155,22 @@ function LessonRow({ lesson, otherParty }: { lesson: MyLesson; otherParty: strin
             {fmtTime(lesson.startsAt)} · {lesson.minutes} min ·{" "}
             {lesson.lessonType === "provisional" ? "Provisional" : "Driving"} lesson with {otherParty}
           </p>
+          {lesson.notes && (
+            <p className="text-muted-foreground bg-secondary/60 mt-2 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs">
+              <NotebookText className="mt-0.5 size-3.5 shrink-0" />
+              <span>{lesson.notes}</span>
+            </p>
+          )}
+          {rescheduleHref && (
+            <a
+              href={rescheduleHref}
+              target="_blank"
+              rel="noreferrer"
+              className="text-success mt-2 inline-flex items-center gap-1.5 text-xs font-medium hover:underline"
+            >
+              <MessageCircle className="size-3.5" /> Request a reschedule
+            </a>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -162,14 +197,30 @@ function ScheduleView({
   otherPartyLabel,
   onReset,
   resetLabel,
+  role,
 }: {
   greetingName: string;
   lessons: MyLesson[];
   otherPartyLabel: (l: MyLesson) => string;
   onReset: () => void;
   resetLabel: string;
+  /** Students get a "Request a reschedule" WhatsApp link on upcoming lessons; instructors don't. */
+  role: "student" | "instructor";
 }) {
   const [showHistory, setShowHistory] = useState(false);
+  const { settings } = useSettings();
+
+  function rescheduleHref(l: MyLesson) {
+    if (role !== "student" || l.status !== "scheduled" || new Date(l.startsAt) <= new Date()) {
+      return undefined;
+    }
+    const message = renderTemplate(settings.waRescheduleTemplate, {
+      student: greetingName,
+      date: fmtDay(l.startsAt),
+      time: fmtTime(l.startsAt),
+    });
+    return waLink(settings.whatsapp, message);
+  }
 
   if (lessons.length === 0) {
     return (
@@ -247,7 +298,12 @@ function ScheduleView({
           </h3>
           <div className="mt-3 space-y-3">
             {upcoming.map((l) => (
-              <LessonRow key={l.id} lesson={l} otherParty={otherPartyLabel(l)} />
+              <LessonRow
+                key={l.id}
+                lesson={l}
+                otherParty={otherPartyLabel(l)}
+                rescheduleHref={rescheduleHref(l)}
+              />
             ))}
           </div>
         </div>
@@ -314,6 +370,7 @@ function StudentLookup() {
         otherPartyLabel={(l) => l.instructorName ?? "an instructor"}
         onReset={() => setResult(null)}
         resetLabel="Check a different student"
+        role="student"
       />
     );
   }
@@ -385,6 +442,7 @@ function InstructorLookup() {
         otherPartyLabel={(l) => l.studentName ?? "a student"}
         onReset={() => setResult(null)}
         resetLabel="Check a different instructor"
+        role="instructor"
       />
     );
   }

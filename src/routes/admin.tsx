@@ -100,6 +100,7 @@ import {
   INSTRUCTOR_LESSON_TEMPLATE_TOKENS,
   STUDENT_LESSON_TEMPLATE_TOKENS,
   ENQUIRY_FOLLOWUP_TEMPLATE_TOKENS,
+  RESCHEDULE_TEMPLATE_TOKENS,
   WEEKLY_PLAN_TEMPLATE_TOKENS,
   ENQUIRY_STATUSES,
   PAYMENT_STATUSES,
@@ -2569,6 +2570,20 @@ function SettingsPanel() {
           />
           <p className="text-muted-foreground text-xs">
             Tokens: {STUDENT_LESSON_TEMPLATE_TOKENS.join(" ")}
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:col-span-2">
+          <Label>WhatsApp message: student requests a reschedule</Label>
+          <Textarea
+            rows={5}
+            className="font-mono text-xs"
+            value={settings.waRescheduleTemplate}
+            onChange={(e) => save({ waRescheduleTemplate: e.target.value })}
+          />
+          <p className="text-muted-foreground text-xs">
+            Tokens: {RESCHEDULE_TEMPLATE_TOKENS.join(" ")}, sent to the office WhatsApp number
+            above when a student taps "Request reschedule" on their /my-lessons page.
           </p>
         </div>
 
