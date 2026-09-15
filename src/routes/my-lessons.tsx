@@ -121,11 +121,14 @@ function LessonRow({
   lesson,
   otherParty,
   rescheduleHref,
+  awaitingUpdate,
 }: {
   lesson: MyLesson;
   otherParty: string;
-  /** Present only on the student view, for upcoming scheduled lessons. */
+  /** Present only on the student view, for scheduled lessons. */
   rescheduleHref?: string;
+  /** True when this lesson is still "Scheduled" but its time has already passed. */
+  awaitingUpdate?: boolean;
 }) {
   const meta = STATUS_META[lesson.status];
   const StatusIcon = meta.icon;
@@ -155,6 +158,12 @@ function LessonRow({
             {fmtTime(lesson.startsAt)} · {lesson.minutes} min ·{" "}
             {lesson.lessonType === "provisional" ? "Provisional" : "Driving"} lesson with {otherParty}
           </p>
+          {awaitingUpdate && (
+            <p className="text-warning-foreground bg-warning/10 mt-2 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs">
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <span>This lesson's time has passed. We'll confirm its status shortly.</span>
+            </p>
+          )}
           {lesson.notes && (
             <p className="text-muted-foreground bg-secondary/60 mt-2 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs">
               <NotebookText className="mt-0.5 size-3.5 shrink-0" />
@@ -181,10 +190,19 @@ function LessonRow({
               </a>
             </Button>
           )}
-          <Badge variant="outline" className={cn("gap-1", meta.className)}>
-            <StatusIcon className="size-3" />
-            {meta.label}
-          </Badge>
+          {awaitingUpdate ? (
+            <Badge
+              variant="outline"
+              className="text-warning-foreground border-warning/40 bg-warning/15 gap-1"
+            >
+              <AlertCircle className="size-3" /> Awaiting update
+            </Badge>
+          ) : (
+            <Badge variant="outline" className={cn("gap-1", meta.className)}>
+              <StatusIcon className="size-3" />
+              {meta.label}
+            </Badge>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -243,16 +261,20 @@ function ScheduleView({
   }
 
   const now = new Date();
-  const upcoming = lessons
-    .filter((l) => l.status === "scheduled")
+  const scheduled = lessons.filter((l) => l.status === "scheduled");
+  const upcoming = scheduled
+    .filter((l) => new Date(l.startsAt) > now)
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
+  const awaitingUpdate = scheduled
+    .filter((l) => new Date(l.startsAt) <= now)
+    .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
   const history = lessons
     .filter((l) => l.status !== "scheduled")
     .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
 
   const completedCount = lessons.filter((l) => l.status === "completed").length;
   const missedCount = lessons.filter((l) => l.status === "cancelled" || l.status === "no-show").length;
-  const next = upcoming.find((l) => new Date(l.startsAt) > now);
+  const next = upcoming[0];
 
   return (
     <div className="mt-6">
@@ -303,6 +325,26 @@ function ScheduleView({
                 lesson={l}
                 otherParty={otherPartyLabel(l)}
                 rescheduleHref={rescheduleHref(l)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Lessons whose time has passed but haven't been marked complete/cancelled/no-show yet */}
+      {awaitingUpdate.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-warning-foreground flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
+            <AlertCircle className="size-3.5" /> Awaiting update
+          </h3>
+          <div className="mt-3 space-y-3">
+            {awaitingUpdate.map((l) => (
+              <LessonRow
+                key={l.id}
+                lesson={l}
+                otherParty={otherPartyLabel(l)}
+                rescheduleHref={rescheduleHref(l)}
+                awaitingUpdate
               />
             ))}
           </div>
