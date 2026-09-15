@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Clock,
   GraduationCap,
+  History,
   ListChecks,
   MessageCircle,
   NotebookText,
@@ -189,6 +190,11 @@ function LessonRow({
                 <CalendarPlus className="size-4" />
               </a>
             </Button>
+          )}
+          {lesson.status === "scheduled" && lesson.rescheduled && (
+            <Badge variant="outline" className="text-accent-foreground border-accent/40 bg-accent/15 gap-1">
+              <History className="size-3" /> Rescheduled
+            </Badge>
           )}
           {awaitingUpdate ? (
             <Badge

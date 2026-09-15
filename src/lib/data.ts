@@ -2001,6 +2001,8 @@ export interface MyLesson {
   studentName?: string;
   /** Admin's note on this lesson, shown to whoever looks the lesson up. */
   notes?: string;
+  /** True once its date or time has been changed after it was first booked. */
+  rescheduled?: boolean;
 }
 
 /** Returns null when the name/phone don't match any student. */
@@ -2775,6 +2777,8 @@ export interface Lesson {
   minutes: number;
   notes: string;
   status: LessonStatus;
+  /** True once its date or time has been changed after it was first booked. */
+  rescheduled: boolean;
   createdAt: string;
 }
 
@@ -2788,6 +2792,7 @@ function lessonFromRow(row: any): Lesson {
     minutes: row.minutes,
     notes: row.notes ?? "",
     status: row.status,
+    rescheduled: row.rescheduled ?? false,
     createdAt: row.created_at,
   };
 }
@@ -2801,6 +2806,7 @@ function lessonToRow(item: Partial<Lesson>): Record<string, unknown> {
   if (has(item, "minutes")) row.minutes = item.minutes;
   if (has(item, "notes")) row.notes = item.notes;
   if (has(item, "status")) row.status = item.status;
+  if (has(item, "rescheduled")) row.rescheduled = item.rescheduled;
   if (has(item, "createdAt")) row.created_at = item.createdAt;
   return row;
 }

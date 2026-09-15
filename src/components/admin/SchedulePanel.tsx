@@ -13,6 +13,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  History,
   ListChecks,
   MessageCircle,
   Plus,
@@ -622,6 +623,17 @@ function LessonCard({
             >
               {l.status.replace("-", " ")}
             </span>
+            {l.status === "scheduled" && l.rescheduled && (
+              <>
+                <span aria-hidden>·</span>
+                <Badge
+                  variant="outline"
+                  className="text-accent-foreground border-accent/40 bg-accent/15 gap-1 text-[0.65rem] font-medium"
+                >
+                  <History className="size-3" /> Rescheduled
+                </Badge>
+              </>
+            )}
             {l.status === "scheduled" && endTime < new Date() && (
               <>
                 <span aria-hidden>·</span>
@@ -665,7 +677,7 @@ function LessonCard({
                   );
                   return;
                 }
-                update(l.id, { startsAt: iso });
+                update(l.id, { startsAt: iso, rescheduled: true });
               }}
             />
           </div>
@@ -689,7 +701,7 @@ function LessonCard({
                   );
                   return;
                 }
-                update(l.id, { startsAt: iso });
+                update(l.id, { startsAt: iso, rescheduled: true });
               }}
             />
           </div>
@@ -889,6 +901,7 @@ function AddLessonDialog({
       minutes,
       notes,
       status: "scheduled",
+      rescheduled: false,
       createdAt: new Date().toISOString(),
     });
     toast.success("Lesson scheduled");
@@ -1120,6 +1133,7 @@ function WeeklyScheduleDialog({
         minutes,
         notes,
         status: "scheduled",
+        rescheduled: false,
         createdAt,
       };
       candidates.push(lesson);
@@ -1436,6 +1450,7 @@ function BulkImportLessons({
         minutes: r.minutes,
         notes: r.notes,
         status: "scheduled",
+        rescheduled: false,
         createdAt: new Date().toISOString(),
       });
       return r;
@@ -1592,6 +1607,7 @@ function BulkImportLessons({
                       minutes: r.minutes,
                       notes: r.notes,
                       status: "scheduled",
+                      rescheduled: false,
                       createdAt: new Date().toISOString(),
                     });
                   }
