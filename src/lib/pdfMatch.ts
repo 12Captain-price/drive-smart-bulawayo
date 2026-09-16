@@ -142,7 +142,7 @@ function normalize(s: string): string {
  * starting with a short word (e.g. "A flashing amber light...") continues
  * in lowercase. A leading word matching neither pattern is left alone.
  */
-function extractDesignator(s: string): string | null {
+export function extractDesignator(s: string): string | null {
   const trimmed = s.trim();
   const explicit = trimmed.match(/\b(?:answer|ans)\s*[:-]?\s*([A-Za-z0-9]{1,4})\b/i);
   if (explicit) return explicit[1];

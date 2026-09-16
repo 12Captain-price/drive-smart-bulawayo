@@ -2550,6 +2550,16 @@ export interface Question {
    *  the payload-size issues noted on uploadTestFileToStorage). */
   image?: string;
   imageName?: string;
+  /** Fractional crop rectangle (0–1 of `cropSourceImage`) that produced `image`,
+   *  when it was auto-cropped from a PDF page — lets the admin re-open the
+   *  drag-to-adjust crop tool on an already-saved question, not just during
+   *  the initial import review. Absent for manually uploaded images. */
+  cropBox?: { top: number; left: number; width: number; height: number };
+  /** Full-resolution render of the page `image` was cropped from (a
+   *  "test-files" Storage public URL, same convention as `image` itself),
+   *  so a later crop re-cuts from the original page and stays sharp instead
+   *  of zooming into an already-cropped, lower-detail thumbnail. */
+  cropSourceImage?: string;
 }
 
 export interface Test {

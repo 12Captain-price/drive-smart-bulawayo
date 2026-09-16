@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -18,11 +18,22 @@ import {
   Users,
   Maximize2,
   Upload,
+  KeySquare,
+  RotateCcw,
+  ZoomIn,
 } from "lucide-react";
 import { PdfPaper } from "@/components/site/PdfPaper";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { extractPdfText, matchPdfAnswers, type PdfMatchResult } from "@/lib/pdfMatch";
-import { importPdfToDraftQuestions, readFileAsDataUrl, type DraftQuestion } from "@/lib/pdfImport";
+import { extractPdfText, matchPdfAnswers, parseNumberedAnswers, extractDesignator, type PdfMatchResult } from "@/lib/pdfMatch";
+import {
+  importPdfToDraftQuestions,
+  readFileAsDataUrl,
+  cropDataUrlToBox,
+  dataUrlToFile,
+  LETTER_ORDER,
+  type DraftQuestion,
+  type CropBox,
+} from "@/lib/pdfImport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -451,6 +462,8 @@ function TestEditor({
   const [uploading, setUploading] = useState<"paper" | "answerKey" | null>(null);
   const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [answerKeyOpen, setAnswerKeyOpen] = useState(false);
+  const [adjustingQuestionId, setAdjustingQuestionId] = useState<string | null>(null);
   const setQuestions = (questions: Question[]) => update(test.id, { questions });
   const ready = testIsReady(test);
   const readyReason = testReadyReason(test);
@@ -628,27 +641,44 @@ function TestEditor({
                         <img
                           src={q.image}
                           alt={q.imageName ?? "Question image"}
-                          className="h-20 w-20 rounded-lg border object-cover"
+                          className="h-20 w-20 shrink-0 rounded-lg border object-cover"
                         />
                         <div className="min-w-0 flex-1">
                           <p className="text-muted-foreground truncate text-xs">{q.imageName}</p>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="mt-1"
-                            onClick={() =>
-                              setQuestions(
-                                test.questions.map((x) =>
-                                  x.id === q.id
-                                    ? { ...x, image: undefined, imageName: undefined }
-                                    : x,
-                                ),
-                              )
-                            }
-                          >
-                            <Trash2 className="size-4" /> Remove image
-                          </Button>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            {q.cropBox && q.cropSourceImage && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setAdjustingQuestionId(q.id)}
+                              >
+                                <Maximize2 className="size-4" /> Adjust crop
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setQuestions(
+                                  test.questions.map((x) =>
+                                    x.id === q.id
+                                      ? {
+                                          ...x,
+                                          image: undefined,
+                                          imageName: undefined,
+                                          cropBox: undefined,
+                                          cropSourceImage: undefined,
+                                        }
+                                      : x,
+                                  ),
+                                )
+                              }
+                            >
+                              <Trash2 className="size-4" /> Remove image
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -782,12 +812,62 @@ function TestEditor({
                 <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
                   <Upload className="size-4" /> Import from PDF
                 </Button>
+                {test.questions.length > 0 && (
+                  <Button type="button" variant="outline" onClick={() => setAnswerKeyOpen(true)}>
+                    <KeySquare className="size-4" /> Add/update answer key
+                  </Button>
+                )}
               </div>
               <PdfImportDialog
                 open={importOpen}
                 onOpenChange={setImportOpen}
                 onImport={(imported) => setQuestions([...test.questions, ...imported])}
               />
+              <AnswerKeyDialog
+                open={answerKeyOpen}
+                onOpenChange={setAnswerKeyOpen}
+                questions={test.questions}
+                onApply={(updates) =>
+                  setQuestions(
+                    test.questions.map((x, i) =>
+                      updates.has(i) ? { ...x, correct: updates.get(i)! } : x,
+                    ),
+                  )
+                }
+              />
+              {adjustingQuestionId &&
+                (() => {
+                  const target = test.questions.find((x) => x.id === adjustingQuestionId);
+                  if (!target?.cropBox || !target.cropSourceImage) return null;
+                  return (
+                    <CropAdjustDialog
+                      pageImage={target.cropSourceImage}
+                      initialBox={target.cropBox}
+                      onCancel={() => setAdjustingQuestionId(null)}
+                      onConfirm={async (box) => {
+                        try {
+                          const cropped = await cropDataUrlToBox(target.cropSourceImage!, box);
+                          const file = dataUrlToFile(
+                            cropped,
+                            target.imageName ?? "question-crop.png",
+                          );
+                          const url = await uploadTestFileToStorage(file);
+                          setQuestions(
+                            test.questions.map((x) =>
+                              x.id === target.id ? { ...x, image: url, cropBox: box } : x,
+                            ),
+                          );
+                          setAdjustingQuestionId(null);
+                        } catch (err) {
+                          toast.error(
+                            `Could not update the crop, ${errorMessage(err, "check your connection and try again.")}`,
+                            { duration: Infinity },
+                          );
+                        }
+                      }}
+                    />
+                  );
+                })()}
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
@@ -895,6 +975,12 @@ function PdfImportDialog({
   const [keyText, setKeyText] = useState("");
   const [draft, setDraft] = useState<DraftQuestion[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
+  // Full-resolution page renders keyed by page number, kept around only for
+  // the review screen so "Adjust crop" can re-cut from the original page
+  // instead of the already-cropped (and lower-detail) question image.
+  const [pageImages, setPageImages] = useState<Record<number, string>>({});
+  const [adjustingDraftId, setAdjustingDraftId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   function reset() {
     setStage("upload");
@@ -904,6 +990,9 @@ function PdfImportDialog({
     setKeyText("");
     setDraft([]);
     setErrors([]);
+    setPageImages({});
+    setAdjustingDraftId(null);
+    setConfirming(false);
   }
 
   function close() {
@@ -930,6 +1019,7 @@ function PdfImportDialog({
       const result = await importPdfToDraftQuestions(paperDataUrl, resolvedKeyText);
       setDraft(result.questions);
       setErrors(result.errors);
+      setPageImages(result.pageImages);
       setStage("review");
       if (result.questions.length === 0) {
         toast.error("Couldn't detect any questions in that PDF.", { duration: Infinity });
@@ -946,18 +1036,66 @@ function PdfImportDialog({
     setDraft(draft.map((d) => (d.draftId === draftId ? { ...d, ...patch } : d)));
   }
 
-  function confirmImport() {
-    const questions: Question[] = draft.map((d) => ({
-      id: uid(),
-      text: d.text,
-      image: d.image,
-      imageName: d.imageName,
-      options: d.options,
-      correct: d.correct,
-    }));
-    onImport(questions);
-    toast.success(`Added ${questions.length} question${questions.length === 1 ? "" : "s"}`);
-    close();
+  async function confirmImport() {
+    setConfirming(true);
+    try {
+      // Both auto-cropped diagrams and manually-replaced ones can still be
+      // raw base64 `data:` URLs at this point. Uploading them to Storage
+      // here — the same path manually-added question images already go
+      // through — keeps the actual test record small. Skipping this was
+      // the cause of the lag your manager flagged: the question text (tiny)
+      // rendered instantly for students, then the multi-hundred-KB inline
+      // image had to finish downloading and decoding before it appeared.
+      //
+      // Each source page also gets uploaded once (not once per question) so
+      // the crop can still be re-adjusted later, after these questions are
+      // already part of a saved test — see "Adjust crop" in TestEditor.
+      const pageUploads = new Map<number, Promise<string>>();
+      function uploadPage(pageNum: number): Promise<string> {
+        let p = pageUploads.get(pageNum);
+        if (!p) {
+          p = uploadTestFileToStorage(dataUrlToFile(pageImages[pageNum], `page-${pageNum}.png`));
+          pageUploads.set(pageNum, p);
+        }
+        return p;
+      }
+
+      const questions: Question[] = await Promise.all(
+        draft.map(async (d) => {
+          let image = d.image;
+          let imageName = d.imageName;
+          if (image?.startsWith("data:")) {
+            const file = dataUrlToFile(image, imageName ?? `question-${d.number}.png`);
+            image = await uploadTestFileToStorage(file);
+            imageName = file.name;
+          }
+          let cropSourceImage: string | undefined;
+          if (d.pageNum && d.cropBox && pageImages[d.pageNum]) {
+            cropSourceImage = await uploadPage(d.pageNum);
+          }
+          return {
+            id: uid(),
+            text: d.text,
+            image,
+            imageName,
+            options: d.options,
+            correct: d.correct,
+            cropBox: cropSourceImage ? d.cropBox : undefined,
+            cropSourceImage,
+          };
+        }),
+      );
+      onImport(questions);
+      toast.success(`Added ${questions.length} question${questions.length === 1 ? "" : "s"}`);
+      close();
+    } catch (err) {
+      toast.error(
+        `Could not upload one of the diagrams, ${errorMessage(err, "check your connection and try again.")}`,
+        { duration: Infinity },
+      );
+    } finally {
+      setConfirming(false);
+    }
   }
 
   const warningCount = draft.filter((d) => d.warning).length;
@@ -1061,12 +1199,74 @@ function PdfImportDialog({
                     <span>{d.warning}</span>
                   </div>
                 )}
-                {d.image && (
-                  <div className="bg-background flex max-h-[420px] items-center justify-center overflow-hidden rounded-lg border">
+                {d.image ? (
+                  <div className="space-y-2">
                     <img
                       src={d.image}
                       alt={`Question ${d.number} diagram`}
-                      className="max-h-[420px] w-full object-contain"
+                      className="w-full rounded-lg border object-contain"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          updateDraft(d.draftId, { image: undefined, imageName: undefined })
+                        }
+                      >
+                        <Trash2 className="size-4" /> Remove image
+                      </Button>
+                      {d.pageNum && d.cropBox && pageImages[d.pageNum] ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAdjustingDraftId(d.draftId)}
+                        >
+                          <Maximize2 className="size-4" /> Adjust crop
+                        </Button>
+                      ) : null}
+                      <Label
+                        htmlFor={`draft-image-${d.draftId}`}
+                        className="text-primary cursor-pointer text-xs underline underline-offset-2"
+                      >
+                        Replace with a different image
+                      </Label>
+                      <Input
+                        id={`draft-image-${d.draftId}`}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const url = await readFileAsDataUrl(file);
+                          updateDraft(d.draftId, {
+                            image: url,
+                            imageName: file.name,
+                            pageNum: undefined,
+                            cropBox: undefined,
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-1.5">
+                    <Label htmlFor={`draft-image-${d.draftId}`} className="text-xs">
+                      No diagram detected — add one if this question needs it
+                    </Label>
+                    <Input
+                      id={`draft-image-${d.draftId}`}
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const url = await readFileAsDataUrl(file);
+                        updateDraft(d.draftId, { image: url, imageName: file.name });
+                      }}
                     />
                   </div>
                 )}
@@ -1106,10 +1306,495 @@ function PdfImportDialog({
             </Button>
           )}
           {stage === "review" && (
-            <Button type="button" onClick={confirmImport} disabled={draft.length === 0}>
-              <Check className="size-4" /> Add {draft.length} question
-              {draft.length === 1 ? "" : "s"}
+            <Button type="button" onClick={confirmImport} disabled={draft.length === 0 || confirming}>
+              {confirming ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Adding…
+                </>
+              ) : (
+                <>
+                  <Check className="size-4" /> Add {draft.length} question
+                  {draft.length === 1 ? "" : "s"}
+                </>
+              )}
             </Button>
+          )}
+        </div>
+      </DialogContent>
+      {adjustingDraftId &&
+        (() => {
+          const target = draft.find((d) => d.draftId === adjustingDraftId);
+          if (!target?.pageNum || !target.cropBox || !pageImages[target.pageNum]) return null;
+          return (
+            <CropAdjustDialog
+              pageImage={pageImages[target.pageNum]}
+              initialBox={target.cropBox}
+              onCancel={() => setAdjustingDraftId(null)}
+              onConfirm={async (box) => {
+                const cropped = await cropDataUrlToBox(pageImages[target.pageNum!], box);
+                updateDraft(target.draftId, { image: cropped, cropBox: box });
+                setAdjustingDraftId(null);
+              }}
+            />
+          );
+        })()}
+    </Dialog>
+  );
+}
+
+/**
+ * A drag-to-move, drag-corners-to-resize crop box over the full source page,
+ * for fixing an auto-detected diagram crop that came out a bit off instead
+ * of having to find and upload a whole replacement image.
+ */
+function CropAdjustDialog({
+  pageImage,
+  initialBox,
+  onCancel,
+  onConfirm,
+}: {
+  pageImage: string;
+  initialBox: CropBox;
+  onCancel: () => void;
+  onConfirm: (box: CropBox) => void | Promise<void>;
+}) {
+  const [box, setBox] = useState<CropBox>(initialBox);
+  const [applying, setApplying] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const MIN = 0.03;
+
+  const clampBox = (b: CropBox): CropBox => {
+    const width = Math.min(1, Math.max(MIN, b.width));
+    const height = Math.min(1, Math.max(MIN, b.height));
+    const left = Math.min(Math.max(0, b.left), 1 - width);
+    const top = Math.min(Math.max(0, b.top), 1 - height);
+    return { top, left, width, height };
+  };
+
+  function beginDrag(
+    e: ReactPointerEvent<HTMLDivElement>,
+    mode: "move" | "nw" | "ne" | "sw" | "se",
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    const container = e.currentTarget.closest("[data-crop-container]") as HTMLElement | null;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const startBox = box;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    setDragging(true);
+
+    function onMove(ev: PointerEvent) {
+      const dx = (ev.clientX - startX) / rect.width;
+      const dy = (ev.clientY - startY) / rect.height;
+      let next: CropBox = startBox;
+      if (mode === "move") {
+        next = { ...startBox, left: startBox.left + dx, top: startBox.top + dy };
+      } else if (mode === "se") {
+        next = { ...startBox, width: startBox.width + dx, height: startBox.height + dy };
+      } else if (mode === "ne") {
+        next = {
+          ...startBox,
+          top: startBox.top + dy,
+          width: startBox.width + dx,
+          height: startBox.height - dy,
+        };
+      } else if (mode === "sw") {
+        next = {
+          ...startBox,
+          left: startBox.left + dx,
+          width: startBox.width - dx,
+          height: startBox.height + dy,
+        };
+      } else if (mode === "nw") {
+        next = {
+          ...startBox,
+          left: startBox.left + dx,
+          top: startBox.top + dy,
+          width: startBox.width - dx,
+          height: startBox.height - dy,
+        };
+      }
+      setBox(clampBox(next));
+    }
+    function onUp(ev: PointerEvent) {
+      target.releasePointerCapture(ev.pointerId);
+      setDragging(false);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  const handleCls =
+    "absolute size-4 rounded-full border-2 border-primary bg-background shadow-md transition-transform hover:scale-125";
+  const changed =
+    Math.abs(box.top - initialBox.top) > 0.001 ||
+    Math.abs(box.left - initialBox.left) > 0.001 ||
+    Math.abs(box.width - initialBox.width) > 0.001 ||
+    Math.abs(box.height - initialBox.height) > 0.001;
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="flex w-[95vw] max-w-2xl flex-col gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1">
+            <DialogTitle>Adjust the diagram crop</DialogTitle>
+            <DialogDescription>
+              Drag the box to move it, or a corner to resize. This re-cuts from the original page,
+              so the result stays sharp.
+            </DialogDescription>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="shrink-0"
+            disabled={!changed || applying}
+            onClick={() => setBox(initialBox)}
+          >
+            <RotateCcw className="size-3.5" /> Reset
+          </Button>
+        </div>
+        <div
+          data-crop-container
+          className="relative w-full touch-none select-none overflow-hidden rounded-xl border bg-black/5"
+        >
+          <img src={pageImage} alt="Full page" className="pointer-events-none block w-full" />
+          {/* Dims everything outside the crop box (four bars around it) so the
+              kept region reads clearly at a glance, like a photo-editor crop tool. */}
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 bg-black/55 transition-[height] duration-150"
+            style={{ height: `${box.top * 100}%` }}
+          />
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/55 transition-[height] duration-150"
+            style={{ height: `${(1 - box.top - box.height) * 100}%` }}
+          />
+          <div
+            className="pointer-events-none absolute bg-black/55 transition-[left,width] duration-150"
+            style={{
+              top: `${box.top * 100}%`,
+              height: `${box.height * 100}%`,
+              left: 0,
+              width: `${box.left * 100}%`,
+            }}
+          />
+          <div
+            className="pointer-events-none absolute bg-black/55 transition-[right,width] duration-150"
+            style={{
+              top: `${box.top * 100}%`,
+              height: `${box.height * 100}%`,
+              right: 0,
+              width: `${(1 - box.left - box.width) * 100}%`,
+            }}
+          />
+          <div
+            className={cn(
+              "border-primary absolute cursor-move border-2 shadow-[0_0_0_1px_rgba(255,255,255,0.4)]",
+              !dragging && "transition-[top,left,width,height] duration-150",
+            )}
+            style={{
+              top: `${box.top * 100}%`,
+              left: `${box.left * 100}%`,
+              width: `${box.width * 100}%`,
+              height: `${box.height * 100}%`,
+            }}
+            onPointerDown={(e) => beginDrag(e, "move")}
+          >
+            {/* Rule-of-thirds guide lines — purely visual, helps judge framing while dragging. */}
+            <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "bg-primary/40 absolute",
+                    i < 2
+                      ? "top-0 h-full w-px"
+                      : "left-0 h-px w-full",
+                  )}
+                  style={
+                    i === 0
+                      ? { left: "33.333%" }
+                      : i === 1
+                        ? { left: "66.666%" }
+                        : i === 2
+                          ? { top: "33.333%" }
+                          : { top: "66.666%" }
+                  }
+                />
+              ))}
+            </div>
+            <div
+              className={cn(handleCls, "-top-2 -left-2 cursor-nwse-resize")}
+              onPointerDown={(e) => beginDrag(e, "nw")}
+            />
+            <div
+              className={cn(handleCls, "-top-2 -right-2 cursor-nesw-resize")}
+              onPointerDown={(e) => beginDrag(e, "ne")}
+            />
+            <div
+              className={cn(handleCls, "-bottom-2 -left-2 cursor-nesw-resize")}
+              onPointerDown={(e) => beginDrag(e, "sw")}
+            />
+            <div
+              className={cn(handleCls, "-bottom-2 -right-2 cursor-nwse-resize")}
+              onPointerDown={(e) => beginDrag(e, "se")}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t pt-3">
+          <p className="text-muted-foreground hidden text-xs sm:block">
+            <ZoomIn className="mr-1 inline size-3" />
+            {Math.round(box.width * 100)}% × {Math.round(box.height * 100)}% of the page
+          </p>
+          <div className="ml-auto flex gap-2">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={applying}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={applying}
+              onClick={async () => {
+                setApplying(true);
+                try {
+                  await onConfirm(box);
+                } finally {
+                  setApplying(false);
+                }
+              }}
+            >
+              {applying ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Applying…
+                </>
+              ) : (
+                <>
+                  <Check className="size-4" /> Use this crop
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Lets the admin add or refresh a whole test's answers in one go, at any
+ * time — right after "Import from PDF" (if it was skipped, or the key
+ * wasn't ready yet), or months later when a correction comes in. Matches
+ * purely by position: the Nth question in the test gets the answer for "N"
+ * in the key, so it works the same whether the questions were imported or
+ * typed in by hand.
+ */
+function AnswerKeyDialog({
+  open,
+  onOpenChange,
+  questions,
+  onApply,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  questions: Question[];
+  onApply: (updates: Map<number, number>) => void;
+}) {
+  const [mode, setMode] = useState<"file" | "paste">("file");
+  const [file, setFile] = useState<File | null>(null);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<{
+    updates: Map<number, number>;
+    unmatched: number[];
+  } | null>(null);
+
+  function reset() {
+    setMode("file");
+    setFile(null);
+    setText("");
+    setPreview(null);
+    setBusy(false);
+  }
+
+  function close() {
+    onOpenChange(false);
+    setTimeout(reset, 200);
+  }
+
+  function normalize(s: string): string {
+    return s
+      .toLowerCase()
+      .replace(/[.,;:!?'"()]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /** Resolves one answer-key line to an option index for a given question, or -1 if it can't. */
+  function resolveIndex(rawAnswer: string, options: string[]): number {
+    const designator = extractDesignator(rawAnswer) ?? rawAnswer;
+    const asLetter = LETTER_ORDER.indexOf(designator.trim().toLowerCase());
+    if (asLetter >= 0 && asLetter < options.length) return asLetter;
+    const asNumber = parseInt(designator.trim(), 10);
+    if (Number.isFinite(asNumber) && asNumber >= 1 && asNumber <= options.length) {
+      return asNumber - 1;
+    }
+    const byText = options.findIndex((o) => normalize(o) === normalize(rawAnswer));
+    if (byText >= 0) return byText;
+    return -1;
+  }
+
+  async function analyze() {
+    setBusy(true);
+    try {
+      let keyText = text;
+      if (mode === "file") {
+        if (!file) return;
+        const dataUrl = await readFileAsDataUrl(file);
+        keyText = await extractPdfText(dataUrl);
+      }
+      const parsed = parseNumberedAnswers(keyText);
+      if (parsed.size === 0) {
+        toast.error(
+          "Couldn't find any numbered answers in that — expected something like \"1. C\", one per line.",
+          { duration: Infinity },
+        );
+        return;
+      }
+      const updates = new Map<number, number>();
+      const unmatched: number[] = [];
+      questions.forEach((q, i) => {
+        const n = i + 1;
+        const raw = parsed.get(n);
+        if (!raw) {
+          unmatched.push(n);
+          return;
+        }
+        const idx = resolveIndex(raw, q.options);
+        if (idx >= 0) updates.set(i, idx);
+        else unmatched.push(n);
+      });
+      setPreview({ updates, unmatched });
+    } catch (err) {
+      toast.error(`Couldn't read that answer key, ${errorMessage(err, "check the file and try again.")}`, {
+        duration: Infinity,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function apply() {
+    if (!preview) return;
+    onApply(preview.updates);
+    toast.success(
+      `Updated ${preview.updates.size} answer${preview.updates.size === 1 ? "" : "s"}`,
+    );
+    close();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(v) : close())}>
+      <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-lg flex-col gap-3">
+        <DialogTitle>Add or update the answer key</DialogTitle>
+        <DialogDescription>
+          Matched by position — question 1 in this test gets the answer for "1" in the key, and so
+          on. Nothing changes until you confirm below.
+        </DialogDescription>
+
+        {!preview ? (
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            <ChipGroup
+              size="sm"
+              value={mode}
+              options={[
+                { value: "file", label: "Upload PDF" },
+                { value: "paste", label: "Paste text" },
+              ]}
+              onChange={(v) => setMode(v as "file" | "paste")}
+            />
+            {mode === "file" ? (
+              <Input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            ) : (
+              <Textarea
+                rows={6}
+                placeholder={"e.g.\n1. C\n2. A\n3. B"}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            <p className="text-sm">
+              <span className="text-success font-medium">{preview.updates.size} matched</span>
+              {preview.unmatched.length > 0 && (
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {preview.unmatched.length} left unchanged (Q
+                  {preview.unmatched.join(", Q")})
+                </span>
+              )}
+            </p>
+            {preview.updates.size > 0 && (
+              <div className="bg-secondary/40 max-h-64 space-y-1.5 overflow-y-auto rounded-lg border p-3 text-sm">
+                {[...preview.updates.entries()].map(([i, idx]) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-mono text-[0.65rem]">
+                      Q{i + 1}
+                    </Badge>
+                    <span className="truncate">{questions[i].options[idx] || `Option ${idx + 1}`}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {preview.unmatched.length > 0 && (
+              <p className="text-muted-foreground text-xs">
+                Left as-is — either no line was found for that question number, or its answer
+                didn't match one of the options. Mark those by hand if needed.
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="flex shrink-0 justify-end gap-2 border-t pt-3">
+          <Button type="button" variant="outline" onClick={close}>
+            Cancel
+          </Button>
+          {!preview ? (
+            <Button
+              type="button"
+              onClick={analyze}
+              disabled={busy || (mode === "file" ? !file : !text.trim())}
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Reading…
+                </>
+              ) : (
+                <>
+                  <KeySquare className="size-4" /> Match answers
+                </>
+              )}
+            </Button>
+          ) : (
+            <>
+              <Button type="button" variant="outline" onClick={() => setPreview(null)}>
+                Back
+              </Button>
+              <Button type="button" onClick={apply} disabled={preview.updates.size === 0}>
+                <Check className="size-4" /> Apply {preview.updates.size} answer
+                {preview.updates.size === 1 ? "" : "s"}
+              </Button>
+            </>
           )}
         </div>
       </DialogContent>

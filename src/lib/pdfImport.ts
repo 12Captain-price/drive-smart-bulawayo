@@ -14,6 +14,15 @@
 
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { parseNumberedAnswers } from "@/lib/pdfMatch";
+import { detectDiagramRegions, type DiagramDetection } from "@/lib/pdfVision";
+
+/** A crop rectangle expressed as fractions (0–1) of the full source page image. */
+export interface CropBox {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
 
 export interface DraftQuestion {
   /** Local id for the review screen only — a fresh uid() is assigned on publish. */
@@ -26,12 +35,18 @@ export interface DraftQuestion {
   correct: number;
   /** Set when something about this question looks off, so the review screen can flag it. */
   warning?: string;
+  /** Which page (1-based, key into ImportResult.pageImages) this image was cropped from — only set when `image` came from the PDF itself, not a manual upload. */
+  pageNum?: number;
+  /** The crop rectangle (fractions of the full page) that produced `image`, so the review screen can let the admin drag it around instead of re-guessing. */
+  cropBox?: CropBox;
 }
 
 export interface ImportResult {
   questions: DraftQuestion[];
   /** Paper-level problems (e.g. "couldn't read any text from this PDF"). */
   errors: string[];
+  /** Full-resolution page renders, keyed by 1-based page number, for the crop-adjust tool. Only pages that produced at least one question are included. */
+  pageImages: Record<number, string>;
 }
 
 interface TextItem {
@@ -66,7 +81,7 @@ const QUESTION_MARKER_RE = /^\s*(?:Q\.?\s*)?(\d{1,3})\s*[.):]\s*(.*)$/i;
 const OPTION_LETTER_RE = /^[A-D]$/;
 // A real lettered text option, e.g. "a) Regulatory sign" or "b. Weight restriction".
 const OPTION_TEXT_RE = /^([a-dA-D])\s*[.):]\s*(.+)$/;
-const LETTER_ORDER = ["a", "b", "c", "d", "e"];
+export const LETTER_ORDER = ["a", "b", "c", "d", "e"];
 
 async function loadPdfJs() {
   const pdfjsLib = await import("pdfjs-dist");
@@ -247,17 +262,39 @@ function collectContinuationLines(
     );
 }
 
-/** Crops [topY, bottomY) (in canvas pixel space, top-down) out of a source canvas. */
-function cropCanvas(source: HTMLCanvasElement, topY: number, bottomY: number): string {
+/** Crops [topY, bottomY) × [leftX, rightX) (canvas pixel space, top-down) out of a source canvas. */
+function cropCanvas(
+  source: HTMLCanvasElement,
+  topY: number,
+  bottomY: number,
+  leftX = 0,
+  rightX: number = source.width,
+): string {
   const top = Math.max(0, Math.floor(topY));
   const bottom = Math.min(source.height, Math.ceil(bottomY));
+  const left = Math.max(0, Math.floor(leftX));
+  const right = Math.min(source.width, Math.ceil(rightX));
   const height = Math.max(1, bottom - top);
+  const width = Math.max(1, right - left);
   const out = document.createElement("canvas");
-  out.width = source.width;
+  out.width = width;
   out.height = height;
   const ctx = out.getContext("2d");
   if (!ctx) throw new Error("Could not create a canvas context for cropping");
-  ctx.drawImage(source, 0, top, source.width, height, 0, 0, source.width, height);
+  ctx.drawImage(source, left, top, width, height, 0, 0, width, height);
+  return out.toDataURL("image/png");
+}
+
+/** A smaller copy of a rendered page, just for the vision call — keeps token cost and upload size down. */
+function downscaleForVision(source: HTMLCanvasElement, maxDim = 1200): string {
+  const scale = Math.min(1, maxDim / Math.max(source.width, source.height));
+  if (scale >= 1) return source.toDataURL("image/png");
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.round(source.width * scale));
+  out.height = Math.max(1, Math.round(source.height * scale));
+  const ctx = out.getContext("2d");
+  if (!ctx) return source.toDataURL("image/png");
+  ctx.drawImage(source, 0, 0, out.width, out.height);
   return out.toDataURL("image/png");
 }
 
@@ -284,6 +321,7 @@ export async function importPdfToDraftQuestions(
 
   const scale = 2.5; // high-DPI-ish, keeps crops legible on mobile too
   const draft: DraftQuestion[] = [];
+  const pageImages: Record<number, string> = {};
   let anyMarkersFound = false;
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -296,6 +334,44 @@ export async function importPdfToDraftQuestions(
     const canvas = await renderPageToCanvas(page, scale);
     const ctx = canvas.getContext("2d");
     const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height).data;
+    // Kept around (once per page, not per question) so the review screen's
+    // crop-adjust tool can re-crop from the original full-resolution render
+    // instead of only being able to nudge an already-cropped, lower-detail
+    // image.
+    pageImages[pageNum] = canvas.toDataURL("image/png");
+    const boxFromPx = (topPx: number, bottomPx: number, leftPx = 0, rightPx = canvas.width): CropBox => ({
+      top: topPx / canvas.height,
+      left: leftPx / canvas.width,
+      width: (rightPx - leftPx) / canvas.width,
+      height: (bottomPx - topPx) / canvas.height,
+    });
+
+    // Ask Claude where each question's diagram/photo actually is — far more
+    // reliable than guessing from blank pixel rows, and only one call per
+    // page. If no API key is configured yet, or the call fails for any
+    // reason, aiRegions stays empty and every question on this page falls
+    // back to the pixel-based heuristic below — importing still works
+    // end-to-end either way, just with less precise crops without a key.
+    const aiRegions = new Map<number, DiagramDetection>();
+    try {
+      const vision = await detectDiagramRegions({
+        data: {
+          pageImageDataUrl: downscaleForVision(canvas),
+          questionNumbers: markers.map((m) => m.number),
+        },
+      });
+      if (vision.ok) {
+        for (const region of vision.regions) aiRegions.set(region.number, region);
+      } else if (vision.reason !== "no-api-key") {
+        errors.push(
+          `Diagram detection was unavailable for page ${pageNum} (${vision.reason}) — used a fallback crop instead; double-check that page's images in review.`,
+        );
+      }
+    } catch {
+      errors.push(
+        `Diagram detection was unavailable for page ${pageNum} — used a fallback crop instead; double-check that page's images in review.`,
+      );
+    }
 
     const toPx = (pdfY: number) => viewport.convertToViewportPoint(0, pdfY)[1];
 
@@ -327,10 +403,12 @@ export async function importPdfToDraftQuestions(
       const bottom = cuts[i + 1];
 
       const textOptions = detectTextOptions(lines, marker.y, nextY);
+      const aiRegion = aiRegions.get(marker.number);
       let options: string[];
       let image: string | undefined;
       let letters: string[] = [];
       let questionText: string;
+      let cropBox: CropBox | undefined;
       // The letter designator to match each option in `options` against the
       // answer key, index-aligned with `options` (which for text options
       // holds the option's full prose, not its letter).
@@ -340,10 +418,7 @@ export async function importPdfToDraftQuestions(
         // Real text options (e.g. "a) Regulatory sign"). Any prose lines
         // between the question's own line and the options are wrapped
         // continuation of the question text, not a diagram — fold them in
-        // instead of letting them get mistaken for image content. Only the
-        // leftover space *after* all real text (if any) is a candidate for
-        // an actual diagram/photo, and only if there's real ink there;
-        // otherwise this question has no image at all.
+        // instead of letting them get mistaken for image content.
         options = textOptions.map((o) => o.text);
         letters = textOptions.map((o) => o.letter.toUpperCase());
         matchKeys = letters;
@@ -353,31 +428,57 @@ export async function importPdfToDraftQuestions(
         questionText = [marker.firstLineText, ...continuation.map((l) => l.text)]
           .filter(Boolean)
           .join(" ");
-        const contentStartPx = toPx(
-          continuation.length > 0 ? continuation[continuation.length - 1].y : marker.y,
-        );
 
-        const imageTop = imageData
-          ? findBoundary(imageData, canvas.width, contentStartPx + 20, contentStartPx, optionTopPx)
-          : contentStartPx;
-        const imageBottom = imageData
-          ? findBoundary(
-              imageData,
-              canvas.width,
-              (imageTop + optionTopPx) / 2,
-              imageTop,
-              optionTopPx,
-            )
-          : optionTopPx;
-        const hasInk = imageData
-          ? !bandIsBlank(imageData, canvas.width, Math.ceil(imageTop), Math.floor(imageBottom))
-          : false;
-        if (hasInk && imageBottom - imageTop > 12) {
-          image = cropCanvas(canvas, imageTop, imageBottom);
+        if (aiRegion) {
+          // Claude looked at the actual page and knows whether there's a
+          // diagram here and exactly where it sits — trust that over guessing.
+          if (aiRegion.hasDiagram && aiRegion.box) {
+            const b = aiRegion.box;
+            cropBox = b;
+            image = cropCanvas(
+              canvas,
+              b.top * canvas.height,
+              (b.top + b.height) * canvas.height,
+              b.left * canvas.width,
+              (b.left + b.width) * canvas.width,
+            );
+          }
+        } else {
+          // No AI detection for this question (no API key configured, or
+          // this page's call failed) — fall back to the pixel heuristic:
+          // only the leftover space after all real text is a candidate for
+          // an actual diagram/photo, and only if there's real ink there.
+          const contentStartPx = toPx(
+            continuation.length > 0 ? continuation[continuation.length - 1].y : marker.y,
+          );
+          const imageTop = imageData
+            ? findBoundary(
+                imageData,
+                canvas.width,
+                contentStartPx + 20,
+                contentStartPx,
+                optionTopPx,
+              )
+            : contentStartPx;
+          const imageBottom = imageData
+            ? findBoundary(
+                imageData,
+                canvas.width,
+                (imageTop + optionTopPx) / 2,
+                imageTop,
+                optionTopPx,
+              )
+            : optionTopPx;
+          const hasInk = imageData
+            ? !bandIsBlank(imageData, canvas.width, Math.ceil(imageTop), Math.floor(imageBottom))
+            : false;
+          if (hasInk && imageBottom - imageTop > 12) {
+            cropBox = boxFromPx(imageTop, imageBottom);
+            image = cropCanvas(canvas, imageTop, imageBottom);
+          }
         }
       } else {
-        // Diagram-label style (bare A/B/C/D letters drawn on the diagram) —
-        // the whole question block, question text plus diagram, is the image.
+        // Diagram-label style (bare A/B/C/D letters drawn on the diagram).
         letters = detectBareLetters(lines, marker.y, nextY);
         options = letters.length > 0 ? letters : ["A", "B", "C", "D"];
         matchKeys = options.map((o) => o.toUpperCase());
@@ -385,7 +486,25 @@ export async function importPdfToDraftQuestions(
         questionText = [marker.firstLineText, ...continuation.map((l) => l.text)]
           .filter(Boolean)
           .join(" ");
-        image = cropCanvas(canvas, top, bottom);
+
+        if (aiRegion) {
+          if (aiRegion.hasDiagram && aiRegion.box) {
+            const b = aiRegion.box;
+            cropBox = b;
+            image = cropCanvas(
+              canvas,
+              b.top * canvas.height,
+              (b.top + b.height) * canvas.height,
+              b.left * canvas.width,
+              (b.left + b.width) * canvas.width,
+            );
+          }
+        } else {
+          // Fallback: the whole question block (question text plus diagram)
+          // between the shared, ink-snapped boundaries.
+          cropBox = boxFromPx(top, bottom);
+          image = cropCanvas(canvas, top, bottom);
+        }
       }
       if (!questionText) questionText = `Question ${marker.number}`;
 
@@ -418,6 +537,8 @@ export async function importPdfToDraftQuestions(
         options,
         correct,
         warning,
+        pageNum: image ? pageNum : undefined,
+        cropBox: image ? cropBox : undefined,
       });
     }
   }
@@ -429,7 +550,7 @@ export async function importPdfToDraftQuestions(
   }
 
   draft.sort((a, b) => a.number - b.number);
-  return { questions: draft, errors };
+  return { questions: draft, errors, pageImages };
 }
 
 /** Reads a File into a data URL, for handing to pdfjs / extractPdfText. */
@@ -440,4 +561,55 @@ export function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error("Could not read file"));
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Crops a fractional box (0–1 top/left/width/height) out of a full-page
+ * source image and returns the result as a new data URL. Used by the
+ * drag-to-adjust crop tool to re-cut a question's diagram once the admin
+ * has repositioned or resized the box, without needing the original pdf.js
+ * page object around any more.
+ *
+ * Accepts either a `data:` URL (during the initial import review, before
+ * anything's been uploaded) or a remote Storage URL (when re-adjusting a
+ * crop on an already-saved question) — `crossOrigin` is set so the latter
+ * doesn't taint the canvas and block `toDataURL`.
+ */
+export function cropDataUrlToBox(pageImageUrl: string, box: CropBox): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (!pageImageUrl.startsWith("data:")) img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const left = Math.round(box.left * img.naturalWidth);
+      const top = Math.round(box.top * img.naturalHeight);
+      const width = Math.max(1, Math.round(box.width * img.naturalWidth));
+      const height = Math.max(1, Math.round(box.height * img.naturalHeight));
+      const out = document.createElement("canvas");
+      out.width = width;
+      out.height = height;
+      const ctx = out.getContext("2d");
+      if (!ctx) return reject(new Error("Could not create a canvas context for cropping"));
+      ctx.drawImage(img, left, top, width, height, 0, 0, width, height);
+      resolve(out.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("Could not load the page image for cropping"));
+    img.src = pageImageUrl;
+  });
+}
+
+/**
+ * Turns a `data:` URL (e.g. a cropped diagram produced client-side) back
+ * into a File so it can go through the same Storage-upload path as
+ * manually-picked images, instead of being saved inline as a giant base64
+ * string on the question (which is what caused the diagram to visibly lag
+ * in behind the question text on the student side).
+ */
+export function dataUrlToFile(dataUrl: string, filename: string): File {
+  const [header, base64] = dataUrl.split(",");
+  const mimeMatch = header.match(/data:(.*?);base64/);
+  const mime = mimeMatch ? mimeMatch[1] : "image/png";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], filename, { type: mime });
 }
