@@ -17,10 +17,12 @@ import {
   Trash2,
   Users,
   Maximize2,
+  Upload,
 } from "lucide-react";
 import { PdfPaper } from "@/components/site/PdfPaper";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { extractPdfText, matchPdfAnswers, type PdfMatchResult } from "@/lib/pdfMatch";
+import { importPdfToDraftQuestions, readFileAsDataUrl, type DraftQuestion } from "@/lib/pdfImport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -448,6 +450,7 @@ function TestEditor({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [uploading, setUploading] = useState<"paper" | "answerKey" | null>(null);
   const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const setQuestions = (questions: Question[]) => update(test.id, { questions });
   const ready = testIsReady(test);
   const readyReason = testReadyReason(test);
@@ -763,18 +766,28 @@ function TestEditor({
                   </AlertDialog>
                 </div>
               ))}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  setQuestions([
-                    ...test.questions,
-                    { id: uid(), text: "", options: ["", ""], correct: 0 },
-                  ])
-                }
-              >
-                <Plus className="size-4" /> Add question
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setQuestions([
+                      ...test.questions,
+                      { id: uid(), text: "", options: ["", ""], correct: 0 },
+                    ])
+                  }
+                >
+                  <Plus className="size-4" /> Add question
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
+                  <Upload className="size-4" /> Import from PDF
+                </Button>
+              </div>
+              <PdfImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                onImport={(imported) => setQuestions([...test.questions, ...imported])}
+              />
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
@@ -861,6 +874,246 @@ function TestEditor({
         </CardContent>
       )}
     </Card>
+  );
+}
+
+/* ------------------------------ PDF → MCQ import ----------------------------- */
+
+function PdfImportDialog({
+  open,
+  onOpenChange,
+  onImport,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onImport: (questions: Question[]) => void;
+}) {
+  const [stage, setStage] = useState<"upload" | "processing" | "review">("upload");
+  const [paperFile, setPaperFile] = useState<File | null>(null);
+  const [keyMode, setKeyMode] = useState<"file" | "paste">("file");
+  const [keyFile, setKeyFile] = useState<File | null>(null);
+  const [keyText, setKeyText] = useState("");
+  const [draft, setDraft] = useState<DraftQuestion[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  function reset() {
+    setStage("upload");
+    setPaperFile(null);
+    setKeyMode("file");
+    setKeyFile(null);
+    setKeyText("");
+    setDraft([]);
+    setErrors([]);
+  }
+
+  function close() {
+    onOpenChange(false);
+    // Wait for the close animation before wiping state, so the dialog
+    // doesn't visibly flash back to the upload screen while it's closing.
+    setTimeout(reset, 200);
+  }
+
+  async function runImport() {
+    if (!paperFile) return;
+    setStage("processing");
+    try {
+      const paperDataUrl = await readFileAsDataUrl(paperFile);
+      let resolvedKeyText = keyText;
+      if (keyMode === "file") {
+        if (keyFile) {
+          const keyDataUrl = await readFileAsDataUrl(keyFile);
+          resolvedKeyText = await extractPdfText(keyDataUrl);
+        } else {
+          resolvedKeyText = "";
+        }
+      }
+      const result = await importPdfToDraftQuestions(paperDataUrl, resolvedKeyText);
+      setDraft(result.questions);
+      setErrors(result.errors);
+      setStage("review");
+      if (result.questions.length === 0) {
+        toast.error("Couldn't detect any questions in that PDF.", { duration: Infinity });
+      }
+    } catch (err) {
+      toast.error(`Couldn't read that PDF, ${errorMessage(err, "check the file and try again.")}`, {
+        duration: Infinity,
+      });
+      setStage("upload");
+    }
+  }
+
+  function updateDraft(draftId: string, patch: Partial<DraftQuestion>) {
+    setDraft(draft.map((d) => (d.draftId === draftId ? { ...d, ...patch } : d)));
+  }
+
+  function confirmImport() {
+    const questions: Question[] = draft.map((d) => ({
+      id: uid(),
+      text: d.text,
+      image: d.image,
+      imageName: d.imageName,
+      options: d.options,
+      correct: d.correct,
+    }));
+    onImport(questions);
+    toast.success(`Added ${questions.length} question${questions.length === 1 ? "" : "s"}`);
+    close();
+  }
+
+  const warningCount = draft.filter((d) => d.warning).length;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(v) : close())}>
+      <DialogContent className="flex h-[90vh] w-[95vw] max-w-3xl flex-col gap-3 p-4 sm:p-6">
+        <DialogTitle>Import questions from a PDF paper</DialogTitle>
+        <DialogDescription>
+          Works best with a typed/exported PDF (not a scanned photo) where the diagram options are
+          labelled A, B, C… You'll be able to check and fix everything before it's added.
+        </DialogDescription>
+
+        {stage === "upload" && (
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
+            <div className="grid gap-2">
+              <Label>Paper (PDF)</Label>
+              <Input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setPaperFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Answer key</Label>
+              <ChipGroup
+                size="sm"
+                value={keyMode}
+                options={[
+                  { value: "file", label: "Upload PDF" },
+                  { value: "paste", label: "Paste text" },
+                ]}
+                onChange={(v) => setKeyMode(v as "file" | "paste")}
+              />
+              {keyMode === "file" ? (
+                <Input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setKeyFile(e.target.files?.[0] ?? null)}
+                />
+              ) : (
+                <Textarea
+                  rows={5}
+                  placeholder={"e.g.\n1. C\n2. A\n3. B"}
+                  value={keyText}
+                  onChange={(e) => setKeyText(e.target.value)}
+                />
+              )}
+              <p className="text-muted-foreground text-xs">
+                One answer per question number, e.g. "1. C". You can skip this and pick every answer
+                by hand in the next step instead.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {stage === "processing" && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+            <Loader2 className="text-muted-foreground size-6 animate-spin" />
+            <p className="text-muted-foreground text-sm">Reading the paper and matching answers…</p>
+          </div>
+        )}
+
+        {stage === "review" && (
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            {errors.map((e, i) => (
+              <div
+                key={i}
+                className="bg-destructive/10 text-destructive flex items-start gap-2 rounded-lg p-3 text-sm"
+              >
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>{e}</span>
+              </div>
+            ))}
+            {draft.length > 0 && (
+              <p className="text-muted-foreground text-sm">
+                Found {draft.length} question{draft.length === 1 ? "" : "s"}
+                {warningCount > 0
+                  ? ` — ${warningCount} need a quick check (flagged below).`
+                  : " — everything matched cleanly."}{" "}
+                Nothing is added until you confirm.
+              </p>
+            )}
+            {draft.map((d) => (
+              <div key={d.draftId} className="bg-secondary/40 space-y-3 rounded-lg border p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="label-mono text-muted-foreground mt-2">Q{d.number}</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDraft(draft.filter((x) => x.draftId !== d.draftId))}
+                  >
+                    <Trash2 className="size-4" /> Skip this one
+                  </Button>
+                </div>
+                {d.warning && (
+                  <div className="bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-start gap-2 rounded-md p-2.5 text-xs">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                    <span>{d.warning}</span>
+                  </div>
+                )}
+                {d.image && (
+                  <div className="bg-background flex max-h-[420px] items-center justify-center overflow-hidden rounded-lg border">
+                    <img
+                      src={d.image}
+                      alt={`Question ${d.number} diagram`}
+                      className="max-h-[420px] w-full object-contain"
+                    />
+                  </div>
+                )}
+                <div className="grid gap-2">
+                  <Label className="text-xs">Question text (shown above the diagram)</Label>
+                  <Textarea
+                    rows={2}
+                    value={d.text}
+                    onChange={(e) => updateDraft(d.draftId, { text: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {d.options.map((opt, oi) => (
+                    <Button
+                      key={oi}
+                      type="button"
+                      size="sm"
+                      variant={d.correct === oi ? "default" : "outline"}
+                      onClick={() => updateDraft(d.draftId, { correct: oi })}
+                    >
+                      {d.correct === oi && <Check className="size-3.5" />} {opt}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex shrink-0 justify-end gap-2 border-t pt-3">
+          <Button type="button" variant="outline" onClick={close}>
+            Cancel
+          </Button>
+          {stage === "upload" && (
+            <Button type="button" onClick={runImport} disabled={!paperFile}>
+              <Upload className="size-4" /> Read paper
+            </Button>
+          )}
+          {stage === "review" && (
+            <Button type="button" onClick={confirmImport} disabled={draft.length === 0}>
+              <Check className="size-4" /> Add {draft.length} question
+              {draft.length === 1 ? "" : "s"}
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
