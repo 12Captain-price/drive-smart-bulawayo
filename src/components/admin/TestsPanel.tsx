@@ -23,6 +23,9 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { PdfPaper } from "@/components/site/PdfPaper";
+import { WordPaper } from "@/components/site/WordPaper";
+import { isDocxFile, extractDocxText } from "@/lib/docx";
+import { importDocxToDraftQuestions } from "@/lib/docxImport";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { extractPdfText, matchPdfAnswers, parseNumberedAnswers, extractDesignator, type PdfMatchResult } from "@/lib/pdfMatch";
 import {
@@ -157,12 +160,14 @@ function ExpandableMedia({
   label,
   src,
   isPdf,
+  isDocx = false,
   alt,
   className,
 }: {
   label: string;
   src: string;
   isPdf: boolean;
+  isDocx?: boolean;
   alt: string;
   className?: string;
 }) {
@@ -172,6 +177,8 @@ function ExpandableMedia({
       <div className={cn("bg-secondary/30 relative overflow-y-auto rounded-lg border", className)}>
         {isPdf ? (
           <PdfPaper src={src} className="size-full" />
+        ) : isDocx ? (
+          <WordPaper src={src} className="size-full" />
         ) : (
           <img src={src} alt={alt} className="size-full object-contain" />
         )}
@@ -191,6 +198,8 @@ function ExpandableMedia({
           <div className="bg-secondary/30 min-h-0 flex-1 overflow-y-auto rounded-lg border">
             {isPdf ? (
               <PdfPaper src={src} className="size-full" />
+            ) : isDocx ? (
+              <WordPaper src={src} className="size-full" />
             ) : (
               <img src={src} alt={alt} className="w-full object-contain" />
             )}
@@ -810,7 +819,7 @@ function TestEditor({
                   <Plus className="size-4" /> Add question
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
-                  <Upload className="size-4" /> Import from PDF
+                  <Upload className="size-4" /> Import from PDF/Word
                 </Button>
                 {test.questions.length > 0 && (
                   <Button type="button" variant="outline" onClick={() => setAnswerKeyOpen(true)}>
@@ -872,10 +881,10 @@ function TestEditor({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label>Test paper (PDF or photo)</Label>
+                <Label>Test paper (PDF, Word, or photo)</Label>
                 <Input
                   type="file"
-                  accept="application/pdf,image/*"
+                  accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
                   disabled={uploading !== null}
                   onChange={(e) => upload(e.target.files?.[0], "paper")}
                 />
@@ -889,10 +898,10 @@ function TestEditor({
                 )}
               </div>
               <div className="grid gap-2">
-                <Label>Answer key (PDF)</Label>
+                <Label>Answer key (PDF or Word)</Label>
                 <Input
                   type="file"
-                  accept="application/pdf"
+                  accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   disabled={uploading !== null}
                   onChange={(e) => upload(e.target.files?.[0], "answerKey")}
                 />
@@ -1006,26 +1015,34 @@ function PdfImportDialog({
     if (!paperFile) return;
     setStage("processing");
     try {
+      const paperIsWord = paperFile.name.toLowerCase().endsWith(".docx");
       const paperDataUrl = await readFileAsDataUrl(paperFile);
       let resolvedKeyText = keyText;
       if (keyMode === "file") {
         if (keyFile) {
           const keyDataUrl = await readFileAsDataUrl(keyFile);
-          resolvedKeyText = await extractPdfText(keyDataUrl);
+          const keyIsWord = keyFile.name.toLowerCase().endsWith(".docx");
+          resolvedKeyText = keyIsWord
+            ? await extractDocxText(keyDataUrl)
+            : await extractPdfText(keyDataUrl);
         } else {
           resolvedKeyText = "";
         }
       }
-      const result = await importPdfToDraftQuestions(paperDataUrl, resolvedKeyText);
+      const result = paperIsWord
+        ? await importDocxToDraftQuestions(paperDataUrl, resolvedKeyText)
+        : await importPdfToDraftQuestions(paperDataUrl, resolvedKeyText);
       setDraft(result.questions);
       setErrors(result.errors);
       setPageImages(result.pageImages);
       setStage("review");
       if (result.questions.length === 0) {
-        toast.error("Couldn't detect any questions in that PDF.", { duration: Infinity });
+        toast.error(`Couldn't detect any questions in that ${paperIsWord ? "Word document" : "PDF"}.`, {
+          duration: Infinity,
+        });
       }
     } catch (err) {
-      toast.error(`Couldn't read that PDF, ${errorMessage(err, "check the file and try again.")}`, {
+      toast.error(`Couldn't read that file, ${errorMessage(err, "check the file and try again.")}`, {
         duration: Infinity,
       });
       setStage("upload");
@@ -1103,19 +1120,20 @@ function PdfImportDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(v) : close())}>
       <DialogContent className="flex h-[90vh] w-[95vw] max-w-3xl flex-col gap-3 p-4 sm:p-6">
-        <DialogTitle>Import questions from a PDF paper</DialogTitle>
+        <DialogTitle>Import questions from a paper</DialogTitle>
         <DialogDescription>
-          Works best with a typed/exported PDF (not a scanned photo) where the diagram options are
-          labelled A, B, C… You'll be able to check and fix everything before it's added.
+          Works best with a typed/exported PDF or Word document (not a scanned photo) where the
+          diagram options are labelled A, B, C… You'll be able to check and fix everything before
+          it's added.
         </DialogDescription>
 
         {stage === "upload" && (
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
             <div className="grid gap-2">
-              <Label>Paper (PDF)</Label>
+              <Label>Paper (PDF or Word)</Label>
               <Input
                 type="file"
-                accept="application/pdf"
+                accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => setPaperFile(e.target.files?.[0] ?? null)}
               />
             </div>
@@ -1126,7 +1144,7 @@ function PdfImportDialog({
                 size="sm"
                 value={keyMode}
                 options={[
-                  { value: "file", label: "Upload PDF" },
+                  { value: "file", label: "Upload file" },
                   { value: "paste", label: "Paste text" },
                 ]}
                 onChange={(v) => setKeyMode(v as "file" | "paste")}
@@ -1134,7 +1152,7 @@ function PdfImportDialog({
               {keyMode === "file" ? (
                 <Input
                   type="file"
-                  accept="application/pdf"
+                  accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(e) => setKeyFile(e.target.files?.[0] ?? null)}
                 />
               ) : (
@@ -1655,7 +1673,9 @@ function AnswerKeyDialog({
       if (mode === "file") {
         if (!file) return;
         const dataUrl = await readFileAsDataUrl(file);
-        keyText = await extractPdfText(dataUrl);
+        keyText = file.name.toLowerCase().endsWith(".docx")
+          ? await extractDocxText(dataUrl)
+          : await extractPdfText(dataUrl);
       }
       const parsed = parseNumberedAnswers(keyText);
       if (parsed.size === 0) {
@@ -1712,7 +1732,7 @@ function AnswerKeyDialog({
               size="sm"
               value={mode}
               options={[
-                { value: "file", label: "Upload PDF" },
+                { value: "file", label: "Upload file" },
                 { value: "paste", label: "Paste text" },
               ]}
               onChange={(v) => setMode(v as "file" | "paste")}
@@ -1720,7 +1740,7 @@ function AnswerKeyDialog({
             {mode === "file" ? (
               <Input
                 type="file"
-                accept="application/pdf"
+                accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
             ) : (
@@ -2362,6 +2382,8 @@ function SubmissionCard({
       /\.pdf$/i.test(name ?? ""));
   const paperIsPdf = isPdfFile(test?.paper, test?.paperName);
   const keyIsPdf = isPdfFile(test?.answerKey, test?.answerKeyName);
+  const paperIsDocx = isDocxFile(test?.paper, test?.paperName);
+  const keyIsDocx = isDocxFile(test?.answerKey, test?.answerKeyName);
   const flagGroups = useMemo(() => {
     const m = new Map<string, number>();
     for (const f of sub.flags) m.set(f.type, (m.get(f.type) ?? 0) + 1);
@@ -2376,7 +2398,7 @@ function SubmissionCard({
   const [pdfMatch, setPdfMatch] = useState<PdfMatchResult | null>(null);
   const canAutoMatch =
     test?.type === "pdf" &&
-    Boolean(test.answerKeyText?.trim() || (test.answerKey && keyIsPdf)) &&
+    Boolean(test.answerKeyText?.trim() || (test.answerKey && (keyIsPdf || keyIsDocx))) &&
     Boolean(sub.typed);
 
   async function runAutoMatch() {
@@ -2385,7 +2407,11 @@ function SubmissionCard({
     try {
       const keyText =
         test.answerKeyText?.trim() ||
-        (test.answerKey && keyIsPdf ? await extractPdfText(test.answerKey) : "");
+        (test.answerKey && keyIsPdf
+          ? await extractPdfText(test.answerKey)
+          : test.answerKey && keyIsDocx
+            ? await extractDocxText(test.answerKey)
+            : "");
       if (!keyText.trim()) throw new Error("No readable text in the answer key");
       const result = matchPdfAnswers(keyText, sub.typed);
       if (!result) {
@@ -2527,6 +2553,7 @@ function SubmissionCard({
                     label="Test paper"
                     src={test.paper}
                     isPdf={paperIsPdf}
+                    isDocx={paperIsDocx}
                     alt="Test paper"
                     className="h-96"
                   />
@@ -2567,6 +2594,7 @@ function SubmissionCard({
                       label="Answer key"
                       src={test.answerKey}
                       isPdf={keyIsPdf}
+                      isDocx={keyIsDocx}
                       alt="Answer key"
                       className="h-72"
                     />

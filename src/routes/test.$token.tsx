@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Section } from "@/components/site/blocks";
 import { PdfPaper } from "@/components/site/PdfPaper";
+import { WordPaper } from "@/components/site/WordPaper";
+import { isDocxFile } from "@/lib/docx";
 import {
   fileToDataUrl,
   gradeMcq,
@@ -528,6 +530,7 @@ function TakeTest() {
     test.paper?.startsWith("data:application/pdf") ||
     /\.pdf($|\?)/i.test(test.paper ?? "") ||
     /\.pdf$/i.test(test.paperName ?? "");
+  const isDocxPaper = isDocxFile(test.paper, test.paperName);
 
   const confirmMessage =
     test.type === "mcq"
@@ -676,6 +679,8 @@ function TakeTest() {
                   <div className="bg-secondary/30 h-[60vh] overflow-y-auto rounded-lg border lg:h-[70vh]">
                     {isPdfPaper ? (
                       <PdfPaper src={test.paper!} className="size-full" />
+                    ) : isDocxPaper ? (
+                      <WordPaper src={test.paper!} className="size-full" />
                     ) : (
                       <img src={test.paper} alt="Test paper" className="size-full object-contain" />
                     )}
