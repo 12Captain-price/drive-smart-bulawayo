@@ -2084,6 +2084,7 @@ function AssignmentCard({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const link = `${origin()}/test/${a.token}`;
   const statusLabel = ASSIGNMENT_STATUSES.find((x) => x.value === a.status)?.label ?? a.status;
   const message = [
@@ -2096,41 +2097,79 @@ function AssignmentCard({
 
   return (
     <Card className="overflow-hidden py-0 transition-shadow hover:shadow-md">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="hover:bg-secondary/40 flex w-full items-center gap-3 px-5 py-4 text-left transition-colors"
-      >
-        <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full">
-          <Send className="size-4" />
-        </span>
-
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold">{s?.name ?? "Unknown student"}</span>
-          <span className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
-            <Badge variant="outline" className="font-mono text-[0.65rem] font-medium">
-              {t?.title ?? "Deleted test"}
-            </Badge>
-            <span>{(t?.minutes ?? 0) + a.extensionMinutes} min</span>
-            <span aria-hidden>·</span>
-            <span className={cn("font-medium", ASSIGNMENT_STATUS_TONE[a.status])}>
-              {statusLabel}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <div className="flex items-center gap-1 pr-2">
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="hover:bg-secondary/40 flex min-w-0 flex-1 items-center gap-3 px-5 py-4 text-left transition-colors"
+          >
+            <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full">
+              <Send className="size-4" />
             </span>
-            {a.accessCodeUsed && a.status !== "submitted" && (
-              <>
-                <span aria-hidden>·</span>
-                <span className="text-destructive font-medium">code used</span>
-              </>
-            )}
-          </span>
-        </span>
 
-        {open ? (
-          <ChevronUp className="text-muted-foreground size-4 shrink-0" />
-        ) : (
-          <ChevronDown className="text-muted-foreground size-4 shrink-0" />
-        )}
-      </button>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold">
+                {s?.name ?? "Unknown student"}
+              </span>
+              <span className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
+                <Badge variant="outline" className="font-mono text-[0.65rem] font-medium">
+                  {t?.title ?? "Deleted test"}
+                </Badge>
+                <span>{(t?.minutes ?? 0) + a.extensionMinutes} min</span>
+                <span aria-hidden>·</span>
+                <span className={cn("font-medium", ASSIGNMENT_STATUS_TONE[a.status])}>
+                  {statusLabel}
+                </span>
+                {a.accessCodeUsed && a.status !== "submitted" && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="text-destructive font-medium">code used</span>
+                  </>
+                )}
+              </span>
+            </span>
+
+            {open ? (
+              <ChevronUp className="text-muted-foreground size-4 shrink-0" />
+            ) : (
+              <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+            )}
+          </button>
+
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="text-muted-foreground hover:text-destructive shrink-0"
+              aria-label="Delete assignment"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </AlertDialogTrigger>
+        </div>
+
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this test link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes {s?.name ?? "this student"}'s assignment of "
+              {t?.title ?? "Deleted test"}" for good. If they haven't written it yet, their link
+              will stop working.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => safe(() => remove(a.id), "Test link deleted")}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {open && (
         <CardContent className="space-y-3 border-t pt-5 pb-6">
@@ -2269,7 +2308,7 @@ function AssignmentCard({
               size="sm"
               variant="destructive"
               className="ml-auto"
-              onClick={() => safe(() => remove(a.id), "Test link deleted")}
+              onClick={() => setDeleteOpen(true)}
             >
               <Trash2 className="size-4" /> Delete
             </Button>
