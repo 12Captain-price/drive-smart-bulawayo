@@ -768,6 +768,9 @@ interface Collection<T extends { id: string }> {
   addMany: (items: (Omit<T, "id"> & { id?: string })[]) => T[];
   update: (id: string, patch: Partial<T>) => void;
   remove: (id: string) => void;
+  /** Delete several rows in one round trip — optimistic, same rollback-on-
+   *  failure behaviour as `remove`. Used by "delete all" bulk actions. */
+  removeMany: (ids: string[]) => void;
   replaceAll: (items: T[]) => void;
   /** Swap an item with its neighbour (-1 up, 1 down). */
   move: (id: string, direction: -1 | 1) => void;
@@ -1103,6 +1106,28 @@ function useRemoteCollection<T extends { id: string }>(
     [key, table],
   );
 
+  const removeMany = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      const idSet = new Set(ids);
+      const prev = readRemote<T>(key);
+      writeRemote<T>(
+        key,
+        prev.filter((i) => !idSet.has(i.id)),
+      );
+      (async () => {
+        try {
+          const { error } = await supabase.from(table).delete().in("id", ids);
+          if (error) throw error;
+        } catch (err) {
+          writeRemote<T>(key, prev);
+          reportRemoteError("delete", key, err);
+        }
+      })();
+    },
+    [key, table],
+  );
+
   const replaceAll = useCallback((list: T[]) => writeRemote<T>(key, list), [key]);
 
   const move = useCallback(
@@ -1118,7 +1143,7 @@ function useRemoteCollection<T extends { id: string }>(
     [key],
   );
 
-  return { items, add, addMany, update, remove, replaceAll, move, isLoading };
+  return { items, add, addMany, update, remove, removeMany, replaceAll, move, isLoading };
 }
 
 /**

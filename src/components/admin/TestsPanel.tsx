@@ -366,10 +366,11 @@ function MultiSearchPicker({
 /* --------------------------------- test bank -------------------------------- */
 
 export function TestsPanel() {
-  const { items: tests, add, update, remove } = useTests();
+  const { items: tests, add, update, remove, removeMany } = useTests();
   const [tab, setTab] = useState<"bank" | "assign" | "grade">("bank");
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [bankQuery, setBankQuery] = useState("");
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
 
   const visibleTests = useMemo(() => {
     const q = bankQuery.trim().toLowerCase();
@@ -419,6 +420,45 @@ export function TestsPanel() {
                   className="pl-9"
                 />
               </div>
+            )}
+            {visibleTests.length > 0 && (
+              <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-destructive hover:text-destructive">
+                    <Trash2 className="size-4" />
+                    {bankQuery
+                      ? `Delete all matching (${visibleTests.length})`
+                      : "Delete all tests"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {bankQuery
+                        ? `Delete ${visibleTests.length} matching test${visibleTests.length === 1 ? "" : "s"}?`
+                        : `Delete all ${visibleTests.length} test${visibleTests.length === 1 ? "" : "s"}?`}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This deletes {bankQuery ? "these tests" : "every test in the bank"} and all
+                      their questions for good. Any links already sent to students for these tests
+                      will stop working. This can't be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() =>
+                        safe(
+                          () => removeMany(visibleTests.map((t) => t.id)),
+                          bankQuery ? "Matching tests deleted" : "All tests deleted",
+                        )
+                      }
+                    >
+                      Delete {bankQuery ? "matching tests" : "all tests"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
 
@@ -1834,12 +1874,13 @@ const STATUS_COUNT_META: { value: AssignmentStatus; label: string; tone: string 
 function AssignPanel() {
   const { items: tests } = useTests();
   const { items: students } = useStudents();
-  const { items: assignments, addMany, update, remove } = useAssignments();
+  const { items: assignments, addMany, update, remove, removeMany } = useAssignments();
   const { settings } = useSettings();
   const [testId, setTestId] = useState("");
   const [studentIds, setStudentIds] = useState<string[]>([]);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [listQuery, setListQuery] = useState("");
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<{
     duplicates: Student[];
     targets: Student[];
@@ -2014,16 +2055,59 @@ function AssignPanel() {
       )}
 
       {assignments.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {STATUS_COUNT_META.map((m) => (
-            <Badge
-              key={m.value}
-              variant="outline"
-              className={cn("border-transparent font-medium", m.tone)}
-            >
-              {counts[m.value]} {m.label}
-            </Badge>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {STATUS_COUNT_META.map((m) => (
+              <Badge
+                key={m.value}
+                variant="outline"
+                className={cn("border-transparent font-medium", m.tone)}
+              >
+                {counts[m.value]} {m.label}
+              </Badge>
+            ))}
+          </div>
+          <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="size-4" />
+                {listQuery
+                  ? `Delete all matching (${filteredAssignments.length})`
+                  : "Delete all assigned tests"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {listQuery
+                    ? `Delete ${filteredAssignments.length} matching assignment${filteredAssignments.length === 1 ? "" : "s"}?`
+                    : `Delete all ${assignments.length} assigned test${assignments.length === 1 ? "" : "s"}?`}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This deletes {listQuery ? "these assignments" : "every assigned test"} and their
+                  links for good. Students who haven't finished yet will no longer be able to open
+                  their link. This can't be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() =>
+                    safe(
+                      () => removeMany(filteredAssignments.map((a) => a.id)),
+                      listQuery ? "Matching assignments deleted" : "All assigned tests deleted",
+                    )
+                  }
+                >
+                  Delete {listQuery ? "matching" : "all"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
 
