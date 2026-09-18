@@ -19,7 +19,7 @@ import { parseNumberedAnswers, extractDesignator } from "@/lib/pdfMatch";
 import { LETTER_ORDER, type DraftQuestion, type ImportResult } from "@/lib/pdfImport";
 import { docxSrcToArrayBuffer } from "@/lib/docx";
 
-const QUESTION_MARKER_RE = /^\s*(?:Q\.?\s*)?(\d{1,3})\s*[.):]\s*(.*)$/i;
+const QUESTION_MARKER_RE = /^\s*(?:Q\.?\s*)?(\d{1,3})(?:[.):]\s*|\s+)(.*)$/i;
 const OPTION_TEXT_RE = /^([a-dA-D])\s*[.):]\s*(.+)$/;
 
 interface Block {

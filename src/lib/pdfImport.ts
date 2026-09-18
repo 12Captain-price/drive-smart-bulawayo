@@ -75,7 +75,7 @@ interface TextOption {
   y: number;
 }
 
-const QUESTION_MARKER_RE = /^\s*(?:Q\.?\s*)?(\d{1,3})\s*[.):]\s*(.*)$/i;
+const QUESTION_MARKER_RE = /^\s*(?:Q\.?\s*)?(\d{1,3})(?:[.):]\s*|\s+)(.*)$/i;
 // A bare option letter on its own — the labels printed on/around a diagram,
 // e.g. "A" next to a car in a junction diagram.
 const OPTION_LETTER_RE = /^[A-D]$/;
