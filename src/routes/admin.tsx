@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Activity,
   ArrowDown,
@@ -121,7 +121,6 @@ import {
   useEnquiries,
   useFaqs,
   useInstructors,
-  useLessons,
   usePackages,
   usePayments,
   usePaymentPolicy,
@@ -414,10 +413,6 @@ function Admin() {
   const { items: navPayments } = usePayments();
   const { items: navTestimonials } = useTestimonials();
   const { items: navSubmissions } = useSubmissions();
-  const { items: navLessons } = useLessons();
-  const overdueLessons = navLessons.filter(
-    (l) => l.status === "scheduled" && new Date(l.startsAt).getTime() + l.minutes * 60_000 <= Date.now(),
-  );
   // Automatic EcoCash/OneMoney/card payments land as "confirmed" straight
   // away (Paynow already verified them) — they never go through "pending",
   // so a badge that only counted "pending" would stay silent for every
@@ -446,26 +441,7 @@ function Admin() {
     ).length,
     Testimonials: navTestimonials.filter((t) => t.status === "pending").length,
     Tests: navSubmissions.filter((s) => !s.mark).length,
-    Schedule: overdueLessons.length,
   };
-
-  // One nudge per admin session — a toast the first time overdue lessons
-  // are seen, not on every render, so it doesn't repeat itself while the
-  // admin is already looking at the Schedule tab resolving them.
-  const overdueToastedRef = useRef(false);
-  useEffect(() => {
-    if (overdueLessons.length === 0 || overdueToastedRef.current) return;
-    overdueToastedRef.current = true;
-    toast.info(
-      `${overdueLessons.length} lesson${overdueLessons.length === 1 ? "" : "s"} passed ${
-        overdueLessons.length === 1 ? "its" : "their"
-      } scheduled time and still ${overdueLessons.length === 1 ? "needs" : "need"} a status update.`,
-      {
-        action: { label: "Review", onClick: () => setSection("Schedule") },
-        duration: 10_000,
-      },
-    );
-  }, [overdueLessons.length]);
 
   if (authLoading) {
     return (

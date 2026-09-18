@@ -634,17 +634,6 @@ function LessonCard({
                 </Badge>
               </>
             )}
-            {l.status === "scheduled" && endTime < new Date() && (
-              <>
-                <span aria-hidden>·</span>
-                <Badge
-                  variant="outline"
-                  className="text-warning-foreground border-warning/40 bg-warning/15 gap-1 text-[0.65rem] font-medium"
-                >
-                  <AlertCircle className="size-3" /> Needs update
-                </Badge>
-              </>
-            )}
           </span>
         </span>
         {open ? (
