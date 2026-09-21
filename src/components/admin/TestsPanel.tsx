@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/command";
 import { ChipGroup } from "@/components/site/ChipGroup";
 import {
+  ACCEPTED_IMAGE_TYPES,
   ASSIGNMENT_STATUSES,
   errorMessage,
   uploadTestFileToStorage,
@@ -366,11 +367,10 @@ function MultiSearchPicker({
 /* --------------------------------- test bank -------------------------------- */
 
 export function TestsPanel() {
-  const { items: tests, add, update, remove, removeMany } = useTests();
+  const { items: tests, add, update, remove } = useTests();
   const [tab, setTab] = useState<"bank" | "assign" | "grade">("bank");
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [bankQuery, setBankQuery] = useState("");
-  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
 
   const visibleTests = useMemo(() => {
     const q = bankQuery.trim().toLowerCase();
@@ -420,45 +420,6 @@ export function TestsPanel() {
                   className="pl-9"
                 />
               </div>
-            )}
-            {visibleTests.length > 0 && (
-              <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="text-destructive hover:text-destructive">
-                    <Trash2 className="size-4" />
-                    {bankQuery
-                      ? `Delete all matching (${visibleTests.length})`
-                      : "Delete all tests"}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {bankQuery
-                        ? `Delete ${visibleTests.length} matching test${visibleTests.length === 1 ? "" : "s"}?`
-                        : `Delete all ${visibleTests.length} test${visibleTests.length === 1 ? "" : "s"}?`}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This deletes {bankQuery ? "these tests" : "every test in the bank"} and all
-                      their questions for good. Any links already sent to students for these tests
-                      will stop working. This can't be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() =>
-                        safe(
-                          () => removeMany(visibleTests.map((t) => t.id)),
-                          bankQuery ? "Matching tests deleted" : "All tests deleted",
-                        )
-                      }
-                    >
-                      Delete {bankQuery ? "matching tests" : "all tests"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
             )}
           </div>
 
@@ -561,6 +522,12 @@ function TestEditor({
 
   async function uploadQuestionImage(file: File | undefined, questionId: string) {
     if (!file) return;
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      toast.error(`${file.name} isn't an image — use JPG, PNG or WEBP (PDFs can't be shown as a photo).`, {
+        duration: Infinity,
+      });
+      return;
+    }
     setUploadingImageFor(questionId);
     try {
       const url = await uploadTestFileToStorage(file);
@@ -735,7 +702,11 @@ function TestEditor({
                         type="file"
                         accept="image/*"
                         disabled={uploadingImageFor !== null}
-                        onChange={(e) => uploadQuestionImage(e.target.files?.[0], q.id)}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          void uploadQuestionImage(file, q.id);
+                        }}
                       />
                     )}
                     {uploadingImageFor === q.id && (
@@ -1298,7 +1269,15 @@ function PdfImportDialog({
                         className="hidden"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
+                          e.target.value = "";
                           if (!file) return;
+                          if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+                            toast.error(
+                              `${file.name} isn't an image — use JPG, PNG or WEBP (PDFs can't be shown as a photo).`,
+                              { duration: Infinity },
+                            );
+                            return;
+                          }
                           const url = await readFileAsDataUrl(file);
                           updateDraft(d.draftId, {
                             image: url,
@@ -1321,7 +1300,15 @@ function PdfImportDialog({
                       accept="image/*"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
+                        e.target.value = "";
                         if (!file) return;
+                        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+                          toast.error(
+                            `${file.name} isn't an image — use JPG, PNG or WEBP (PDFs can't be shown as a photo).`,
+                            { duration: Infinity },
+                          );
+                          return;
+                        }
                         const url = await readFileAsDataUrl(file);
                         updateDraft(d.draftId, { image: url, imageName: file.name });
                       }}
