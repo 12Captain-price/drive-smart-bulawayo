@@ -7,6 +7,7 @@ import {
   ChevronsUpDown,
   ChevronUp,
   Copy,
+  Eye,
   FileText,
   ListChecks,
   Loader2,
@@ -97,6 +98,32 @@ const TEST_TYPES: { value: TestType; label: string }[] = [
   { value: "mcq", label: "Multiple choice" },
   { value: "pdf", label: "PDF paper" },
 ];
+
+/**
+ * A file's reported MIME type (`file.type`) is derived from its extension,
+ * not its actual bytes — a PDF renamed to `photo.jpg` reports as
+ * "image/jpeg" and passes an extension/MIME check, then fails silently at
+ * render time (a blank box / broken-image icon), the exact same failure
+ * mode as picking a real .pdf with "All Files" in the file dialog. This
+ * actually tries to decode the file as an image before we accept it, so a
+ * mislabeled or corrupted file is caught at upload time with a clear error
+ * instead of surfacing later as a broken thumbnail.
+ */
+function isDecodableImage(file: File): Promise<boolean> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(true);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(false);
+    };
+    img.src = url;
+  });
+}
 
 const origin = () => (typeof window === "undefined" ? "" : window.location.origin);
 
@@ -474,6 +501,7 @@ function TestEditor({
   const [importOpen, setImportOpen] = useState(false);
   const [answerKeyOpen, setAnswerKeyOpen] = useState(false);
   const [adjustingQuestionId, setAdjustingQuestionId] = useState<string | null>(null);
+  const [previewQuestionId, setPreviewQuestionId] = useState<string | null>(null);
   const setQuestions = (questions: Question[]) => update(test.id, { questions });
   const ready = testIsReady(test);
   const readyReason = testReadyReason(test);
@@ -526,6 +554,13 @@ function TestEditor({
       toast.error(`${file.name} isn't an image — use JPG, PNG or WEBP (PDFs can't be shown as a photo).`, {
         duration: Infinity,
       });
+      return;
+    }
+    if (!(await isDecodableImage(file))) {
+      toast.error(
+        `${file.name} couldn't be opened as an image — it may be a renamed or corrupted file. Try re-saving it as a JPG/PNG and upload again.`,
+        { duration: Infinity },
+      );
       return;
     }
     setUploadingImageFor(questionId);
@@ -662,6 +697,14 @@ function TestEditor({
                         <div className="min-w-0 flex-1">
                           <p className="text-muted-foreground truncate text-xs">{q.imageName}</p>
                           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setPreviewQuestionId(q.id)}
+                            >
+                              <Eye className="size-4" /> Preview
+                            </Button>
                             {q.cropBox && q.cropSourceImage && (
                               <Button
                                 type="button"
@@ -886,6 +929,28 @@ function TestEditor({
                         }
                       }}
                     />
+                  );
+                })()}
+              {previewQuestionId &&
+                (() => {
+                  const target = test.questions.find((x) => x.id === previewQuestionId);
+                  if (!target?.image) return null;
+                  return (
+                    <Dialog open onOpenChange={(v) => !v && setPreviewQuestionId(null)}>
+                      <DialogContent className="flex max-h-[90vh] w-[95vw] max-w-2xl flex-col gap-3 p-4">
+                        <DialogTitle>{target.imageName ?? "Question image"}</DialogTitle>
+                        <DialogDescription className="sr-only">
+                          Full-size preview of the image attached to this question.
+                        </DialogDescription>
+                        <div className="bg-secondary/30 min-h-0 flex-1 overflow-auto rounded-lg border">
+                          <img
+                            src={target.image}
+                            alt={target.imageName ?? "Question image"}
+                            className="w-full object-contain"
+                          />
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   );
                 })()}
             </div>
@@ -1278,6 +1343,13 @@ function PdfImportDialog({
                             );
                             return;
                           }
+                          if (!(await isDecodableImage(file))) {
+                            toast.error(
+                              `${file.name} couldn't be opened as an image — it may be a renamed or corrupted file. Try re-saving it as a JPG/PNG and upload again.`,
+                              { duration: Infinity },
+                            );
+                            return;
+                          }
                           const url = await readFileAsDataUrl(file);
                           updateDraft(d.draftId, {
                             image: url,
@@ -1305,6 +1377,13 @@ function PdfImportDialog({
                         if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
                           toast.error(
                             `${file.name} isn't an image — use JPG, PNG or WEBP (PDFs can't be shown as a photo).`,
+                            { duration: Infinity },
+                          );
+                          return;
+                        }
+                        if (!(await isDecodableImage(file))) {
+                          toast.error(
+                            `${file.name} couldn't be opened as an image — it may be a renamed or corrupted file. Try re-saving it as a JPG/PNG and upload again.`,
                             { duration: Infinity },
                           );
                           return;
