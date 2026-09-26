@@ -2884,13 +2884,17 @@ export function findLessonConflict(
 /* ------------------------------ student notes ------------------------------ */
 
 /**
- * A note (write-up, revision points, etc.) an instructor/admin leaves for a
- * specific student — most often after a provisional lesson. Students read
+ * A note an instructor/admin leaves for a specific student — most often
+ * after a provisional lesson. Can be typed text (`body`), an uploaded file
+ * (`fileUrl`/`fileName` — PDF, Word doc, or image, stored the same way as
+ * test papers via uploadTestFileToStorage), or both at once. Students read
  * these on the My Lessons page (after the same name + last-4-of-phone
  * lookup used for fetchMyLessonsAsStudent); there is no expiry, so a
  * student can log in and out as many times as they like and always find
- * them again. The reading side never downloads a file — see
- * fetchMyNotesAsStudent and the read-only viewer in my-lessons.tsx.
+ * them again. The reading side never offers a download — a PDF/Word
+ * attachment is rendered inline read-only (PdfPaper/WordPaper, same as a
+ * test paper) and an image is shown plain, with no "save" control anywhere
+ * — see fetchMyNotesAsStudent and the viewer in my-lessons.tsx.
  */
 export interface StudentNote {
   id: string;
@@ -2898,6 +2902,8 @@ export interface StudentNote {
   lessonType: LessonType | "general";
   title: string;
   body: string;
+  fileUrl?: string;
+  fileName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -2909,6 +2915,8 @@ function studentNoteFromRow(row: any): StudentNote {
     lessonType: row.lesson_type ?? "general",
     title: row.title ?? "",
     body: row.body ?? "",
+    fileUrl: row.file_url ?? undefined,
+    fileName: row.file_name ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? row.created_at,
   };
@@ -2920,9 +2928,21 @@ function studentNoteToRow(item: Partial<StudentNote>): Record<string, unknown> {
   if (has(item, "lessonType")) row.lesson_type = item.lessonType;
   if (has(item, "title")) row.title = item.title;
   if (has(item, "body")) row.body = item.body;
+  if (has(item, "fileUrl")) row.file_url = item.fileUrl || null;
+  if (has(item, "fileName")) row.file_name = item.fileName || null;
   if (has(item, "createdAt")) row.created_at = item.createdAt;
   return row;
 }
+
+/** True for a src/name pair that looks like a PDF — same sniff used for
+ *  test papers/answer keys (Storage URLs and old data URLs aren't
+ *  guaranteed to carry a reliable content-type, so this checks the URL
+ *  prefix and both the URL's and the original filename's extension). */
+export const isPdfFile = (src: string | undefined, name: string | undefined) =>
+  Boolean(src) &&
+  (src!.startsWith("data:application/pdf") ||
+    /\.pdf($|\?)/i.test(src!) ||
+    /\.pdf$/i.test(name ?? ""));
 
 /** Admin/instructor side — same optimistic Supabase-backed collection as
  *  every other admin table (students, lessons, tests…). */
@@ -2960,6 +2980,8 @@ export async function fetchMyNotesAsStudent(
       lessonType: n.lessonType ?? "general",
       title: n.title ?? "",
       body: n.body ?? "",
+      fileUrl: n.fileUrl ?? undefined,
+      fileName: n.fileName ?? undefined,
       createdAt: n.createdAt,
       updatedAt: n.updatedAt ?? n.createdAt,
     })),

@@ -1,5 +1,17 @@
 import { useMemo, useState } from "react";
-import { FileText, Lock, NotebookPen, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  Lock,
+  NotebookPen,
+  Paperclip,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +37,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useStudents, useStudentNotes, type LessonType, type StudentNote } from "@/lib/data";
+import { isDocxFile } from "@/lib/docx";
+import {
+  errorMessage,
+  isPdfFile,
+  uploadTestFileToStorage,
+  useStudents,
+  useStudentNotes,
+  type LessonType,
+  type StudentNote,
+} from "@/lib/data";
 
 const LESSON_TYPE_OPTIONS: { value: LessonType | "general"; label: string }[] = [
   { value: "provisional", label: "Provisional lesson" },
@@ -43,13 +64,29 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+/** Small "PDF" / "Word" / "Photo" pill for a note's attachment, if it has one. */
+function AttachmentBadge({ note }: { note: StudentNote }) {
+  if (!note.fileUrl) return null;
+  const label = isPdfFile(note.fileUrl, note.fileName)
+    ? "PDF"
+    : isDocxFile(note.fileUrl, note.fileName)
+      ? "Word doc"
+      : "Photo";
+  const Icon = label === "Photo" ? ImageIcon : FileText;
+  return (
+    <Badge variant="outline" className="gap-1 font-normal">
+      <Icon className="size-3" /> {label}
+    </Badge>
+  );
+}
+
 /**
  * Lets staff send a durable, read-only note to a student — the "notes we
- * send after a provisional lesson", but as a proper record instead of a
- * one-off WhatsApp message. Students read these on the My Lessons page
- * (name + last-4-of-phone, same lookup as their lessons) with no download
- * option and no expiry, so they can come back to them whenever they need
- * to revise.
+ * send after a provisional lesson", whether that's a PDF, a Word doc, a
+ * photo, or just typed text (any combination of the three). Students read
+ * these on the My Lessons page (name + last-4-of-phone, same lookup as
+ * their lessons) with no download option and no expiry, so they can come
+ * back to them whenever they need to revise.
  */
 export function NotesPanel() {
   const { items: students } = useStudents();
@@ -89,9 +126,9 @@ export function NotesPanel() {
         <div>
           <h1 className="text-xl font-semibold">Notes</h1>
           <p className="text-muted-foreground mt-1 max-w-prose text-sm">
-            Send a student notes to revise — after a provisional lesson, or anytime. They see them
-            read-only on the My Lessons page: no download, and no expiry, so they can check back
-            whenever they need to.
+            Send a student notes to revise — a PDF, a Word doc, a photo, or just typed text — after
+            a provisional lesson or anytime. They see them read-only on the My Lessons page: no
+            download, and no expiry, so they can check back whenever they need to.
           </p>
         </div>
         <Button onClick={openNew}>
@@ -129,13 +166,16 @@ export function NotesPanel() {
                     <Badge variant="secondary" className="font-normal">
                       {LESSON_TYPE_LABEL[n.lessonType]}
                     </Badge>
+                    <AttachmentBadge note={n} />
                   </div>
                   <p className="text-muted-foreground mt-1 text-sm">
                     {studentName(n.studentId)} · {fmtDate(n.createdAt)}
                   </p>
-                  <p className="text-muted-foreground mt-2 line-clamp-2 text-sm whitespace-pre-line">
-                    {n.body}
-                  </p>
+                  {n.body && (
+                    <p className="text-muted-foreground mt-2 line-clamp-2 text-sm whitespace-pre-line">
+                      {n.body}
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <Button variant="outline" size="icon" onClick={() => openEdit(n)} aria-label="Edit note">
@@ -206,6 +246,15 @@ export function NotesPanel() {
   );
 }
 
+type NotePayload = {
+  studentId: string;
+  lessonType: LessonType | "general";
+  title: string;
+  body: string;
+  fileUrl?: string;
+  fileName?: string;
+};
+
 function NoteComposer({
   open,
   onOpenChange,
@@ -217,12 +266,15 @@ function NoteComposer({
   onOpenChange: (open: boolean) => void;
   note: StudentNote | null;
   students: { id: string; name: string; phone: string }[];
-  onSave: (payload: { studentId: string; lessonType: LessonType | "general"; title: string; body: string }) => void;
+  onSave: (payload: NotePayload) => void;
 }) {
   const [studentId, setStudentId] = useState(note?.studentId ?? "");
   const [lessonType, setLessonType] = useState<LessonType | "general">(note?.lessonType ?? "provisional");
   const [title, setTitle] = useState(note?.title ?? "");
   const [body, setBody] = useState(note?.body ?? "");
+  const [fileUrl, setFileUrl] = useState(note?.fileUrl ?? "");
+  const [fileName, setFileName] = useState(note?.fileName ?? "");
+  const [uploading, setUploading] = useState(false);
 
   // Re-seed the form whenever a different note is opened for editing (or the
   // dialog opens fresh for "New note") — Dialog keeps this component mounted
@@ -235,9 +287,27 @@ function NoteComposer({
     setLessonType(note?.lessonType ?? "provisional");
     setTitle(note?.title ?? "");
     setBody(note?.body ?? "");
+    setFileUrl(note?.fileUrl ?? "");
+    setFileName(note?.fileName ?? "");
   }
 
-  const canSave = studentId && title.trim() && body.trim();
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadTestFileToStorage(file);
+      setFileUrl(url);
+      setFileName(file.name);
+    } catch (err) {
+      toast.error(`Could not upload that file, ${errorMessage(err, "check your connection and try again.")}`, {
+        duration: Infinity,
+      });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const canSave = Boolean(studentId && title.trim() && (body.trim() || fileUrl) && !uploading);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -293,12 +363,45 @@ function NoteComposer({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="note-body">Note</Label>
+            <Label>Attach a file (PDF, Word doc, or photo) — optional</Label>
+            {fileName ? (
+              <div className="border-input bg-secondary/40 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                <Paperclip className="text-muted-foreground size-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{fileName}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFileUrl("");
+                    setFileName("");
+                  }}
+                  className="text-muted-foreground hover:text-foreground shrink-0"
+                  aria-label="Remove attachment"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <Input
+                type="file"
+                accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+                disabled={uploading}
+                onChange={(e) => handleFile(e.target.files?.[0])}
+              />
+            )}
+            {uploading && (
+              <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                <Loader2 className="size-3 animate-spin" /> Uploading…
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="note-body">{fileName ? "Add a note (optional)" : "Note"}</Label>
             <Textarea
               id="note-body"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              rows={8}
+              rows={fileName ? 4 : 8}
               placeholder="Write what you'd like the student to revise…"
             />
           </div>
@@ -317,7 +420,14 @@ function NoteComposer({
           <Button
             disabled={!canSave}
             onClick={() =>
-              onSave({ studentId, lessonType, title: title.trim(), body: body.trim() })
+              onSave({
+                studentId,
+                lessonType,
+                title: title.trim(),
+                body: body.trim(),
+                fileUrl: fileUrl || undefined,
+                fileName: fileName || undefined,
+              })
             }
           >
             <FileText className="size-4" />

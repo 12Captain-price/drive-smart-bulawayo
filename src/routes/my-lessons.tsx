@@ -32,12 +32,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Section, SectionHeading } from "@/components/site/blocks";
+import { PdfPaper } from "@/components/site/PdfPaper";
+import { WordPaper } from "@/components/site/WordPaper";
+import { isDocxFile } from "@/lib/docx";
 import { cn } from "@/lib/utils";
 import {
   errorMessage,
   fetchMyLessonsAsInstructor,
   fetchMyLessonsAsStudent,
   fetchMyNotesAsStudent,
+  isPdfFile,
   renderTemplate,
   useSettings,
   waLink,
@@ -445,6 +449,7 @@ function NotesSection({ notes }: { notes: StudentNote[] }) {
               <p className="truncate font-medium">{n.title || "(untitled note)"}</p>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {NOTE_LESSON_TYPE_LABEL[n.lessonType]} · {fmtNoteDate(n.createdAt)}
+                {n.fileUrl && ` · ${noteAttachmentLabel(n)}`}
               </p>
             </div>
             <ChevronRight className="text-muted-foreground mt-1 size-4 shrink-0" />
@@ -457,14 +462,29 @@ function NotesSection({ notes }: { notes: StudentNote[] }) {
   );
 }
 
-/** Shows a note's full text read-only. Copy/right-click are disabled and
- *  there's no download control — same "look, don't take a copy" spirit as
- *  the test-paper viewer, and it never expires, so the student can reopen
- *  it from this same list any time they log back in. */
+/** "PDF" / "Word doc" / "Photo" — shown next to a note that has an attachment. */
+function noteAttachmentLabel(n: StudentNote) {
+  if (isPdfFile(n.fileUrl, n.fileName)) return "PDF";
+  if (isDocxFile(n.fileUrl, n.fileName)) return "Word doc";
+  return "Photo";
+}
+
+/** Shows a note read-only — its typed text, and/or an attached PDF, Word
+ *  doc, or photo. A PDF/Word attachment renders inline via the same
+ *  canvas/HTML converters used for test papers (PdfPaper/WordPaper), so
+ *  there's never an actual file the student could save — and copy/
+ *  right-click are disabled on the typed text. It never expires, so the
+ *  student can reopen it from this same list any time they log back in. */
 function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenChange: (open: boolean) => void }) {
+  const hasFile = Boolean(note?.fileUrl);
+  const filePdf = isPdfFile(note?.fileUrl, note?.fileName);
+  const fileDocx = isDocxFile(note?.fileUrl, note?.fileName);
+
   return (
     <Dialog open={!!note} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent
+        className={cn("flex flex-col gap-3", hasFile ? "h-[85vh] w-[95vw] max-w-2xl" : "sm:max-w-lg")}
+      >
         {note && (
           <>
             <DialogHeader>
@@ -473,14 +493,38 @@ function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenCh
                 {NOTE_LESSON_TYPE_LABEL[note.lessonType]} · {fmtNoteDate(note.createdAt)}
               </DialogDescription>
             </DialogHeader>
-            <div
-              className="max-h-[60vh] overflow-y-auto rounded-lg border bg-secondary/40 p-4 text-sm whitespace-pre-line select-none"
-              onCopy={(e) => e.preventDefault()}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              {note.body}
-            </div>
-            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+
+            {hasFile && (
+              <div className="bg-secondary/30 min-h-0 flex-1 overflow-y-auto rounded-lg border">
+                {filePdf ? (
+                  <PdfPaper src={note.fileUrl!} className="size-full" />
+                ) : fileDocx ? (
+                  <WordPaper src={note.fileUrl!} className="size-full" />
+                ) : (
+                  <img
+                    src={note.fileUrl}
+                    alt={note.title || "Note attachment"}
+                    className="size-full object-contain"
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
+                )}
+              </div>
+            )}
+
+            {note.body && (
+              <div
+                className={cn(
+                  "overflow-y-auto rounded-lg border bg-secondary/40 p-4 text-sm whitespace-pre-line select-none",
+                  hasFile ? "max-h-32 shrink-0" : "max-h-[60vh]",
+                )}
+                onCopy={(e) => e.preventDefault()}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                {note.body}
+              </div>
+            )}
+
+            <p className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
               <Lock className="size-3.5 shrink-0" /> View-only — this note stays here for you to check
               back on any time, it doesn't expire.
             </p>
