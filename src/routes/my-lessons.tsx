@@ -12,6 +12,7 @@ import {
   GraduationCap,
   History,
   ListChecks,
+  Lock,
   MessageCircle,
   NotebookText,
   Sparkles,
@@ -23,16 +24,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Section, SectionHeading } from "@/components/site/blocks";
 import { cn } from "@/lib/utils";
 import {
   errorMessage,
   fetchMyLessonsAsInstructor,
   fetchMyLessonsAsStudent,
+  fetchMyNotesAsStudent,
   renderTemplate,
   useSettings,
   waLink,
   type MyLesson,
+  type StudentNote,
 } from "@/lib/data";
 
 export const Route = createFileRoute("/my-lessons")({
@@ -218,6 +228,7 @@ function LessonRow({
 function ScheduleView({
   greetingName,
   lessons,
+  notes,
   otherPartyLabel,
   onReset,
   resetLabel,
@@ -225,6 +236,8 @@ function ScheduleView({
 }: {
   greetingName: string;
   lessons: MyLesson[];
+  /** Notes staff have sent this student — students only (see role below). */
+  notes?: StudentNote[];
   otherPartyLabel: (l: MyLesson) => string;
   onReset: () => void;
   resetLabel: string;
@@ -233,6 +246,7 @@ function ScheduleView({
 }) {
   const [showHistory, setShowHistory] = useState(false);
   const { settings } = useSettings();
+  const showNotes = role === "student" && (notes?.length ?? 0) > 0;
 
   function rescheduleHref(l: MyLesson) {
     if (role !== "student" || l.status !== "scheduled") {
@@ -262,6 +276,11 @@ function ScheduleView({
             {resetLabel}
           </Button>
         </div>
+        {showNotes && (
+          <div className="mt-10 text-left">
+            <NotesSection notes={notes!} />
+          </div>
+        )}
       </div>
     );
   }
@@ -381,10 +400,94 @@ function ScheduleView({
         </div>
       )}
 
+      {showNotes && (
+        <div className="mt-8">
+          <NotesSection notes={notes!} />
+        </div>
+      )}
+
       <Button variant="ghost" size="sm" className="mt-8" onClick={onReset}>
         {resetLabel}
       </Button>
     </div>
+  );
+}
+
+const NOTE_LESSON_TYPE_LABEL: Record<StudentNote["lessonType"], string> = {
+  provisional: "Provisional lesson",
+  driving: "Driving lesson",
+  general: "General",
+};
+
+function fmtNoteDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Read-only notes staff have sent this student — no download, no expiry,
+ *  the student can come back to these on every visit. */
+function NotesSection({ notes }: { notes: StudentNote[] }) {
+  const [open, setOpen] = useState<StudentNote | null>(null);
+  const sorted = [...notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return (
+    <div>
+      <h3 className="text-muted-foreground flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
+        <NotebookText className="size-3.5" /> Notes from your instructor
+      </h3>
+      <div className="mt-3 space-y-2">
+        {sorted.map((n) => (
+          <button
+            key={n.id}
+            onClick={() => setOpen(n)}
+            className="border-border/60 bg-card hover:border-primary/40 hover:shadow-sm flex w-full items-start justify-between gap-3 rounded-xl border px-4 py-3 text-left transition"
+          >
+            <div className="min-w-0">
+              <p className="truncate font-medium">{n.title || "(untitled note)"}</p>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                {NOTE_LESSON_TYPE_LABEL[n.lessonType]} · {fmtNoteDate(n.createdAt)}
+              </p>
+            </div>
+            <ChevronRight className="text-muted-foreground mt-1 size-4 shrink-0" />
+          </button>
+        ))}
+      </div>
+
+      <NoteViewer note={open} onOpenChange={(o) => !o && setOpen(null)} />
+    </div>
+  );
+}
+
+/** Shows a note's full text read-only. Copy/right-click are disabled and
+ *  there's no download control — same "look, don't take a copy" spirit as
+ *  the test-paper viewer, and it never expires, so the student can reopen
+ *  it from this same list any time they log back in. */
+function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={!!note} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        {note && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{note.title || "(untitled note)"}</DialogTitle>
+              <DialogDescription>
+                {NOTE_LESSON_TYPE_LABEL[note.lessonType]} · {fmtNoteDate(note.createdAt)}
+              </DialogDescription>
+            </DialogHeader>
+            <div
+              className="max-h-[60vh] overflow-y-auto rounded-lg border bg-secondary/40 p-4 text-sm whitespace-pre-line select-none"
+              onCopy={(e) => e.preventDefault()}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              {note.body}
+            </div>
+            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+              <Lock className="size-3.5 shrink-0" /> View-only — this note stays here for you to check
+              back on any time, it doesn't expire.
+            </p>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -429,6 +532,7 @@ function StudentLookup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ studentName: string; lessons: MyLesson[] } | null>(null);
+  const [notes, setNotes] = useState<StudentNote[]>([]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -441,6 +545,11 @@ function StudentLookup() {
         setResult(null);
       } else {
         setResult(r);
+        // Best-effort — a hiccup fetching notes shouldn't block the schedule
+        // from showing.
+        fetchMyNotesAsStudent(name, phone)
+          .then((n) => setNotes(n?.notes ?? []))
+          .catch(() => {});
       }
     } catch (err) {
       setError(errorMessage(err, "Something went wrong. Try again."));
@@ -454,14 +563,23 @@ function StudentLookup() {
     () => fetchMyLessonsAsStudent(name, phone),
     (r) => setResult(r),
   );
+  useLiveRefresh(
+    !!result,
+    () => fetchMyNotesAsStudent(name, phone),
+    (n) => setNotes(n?.notes ?? []),
+  );
 
   if (result) {
     return (
       <ScheduleView
         greetingName={result.studentName}
         lessons={result.lessons}
+        notes={notes}
         otherPartyLabel={(l) => l.instructorName ?? "an instructor"}
-        onReset={() => setResult(null)}
+        onReset={() => {
+          setResult(null);
+          setNotes([]);
+        }}
         resetLabel="Check a different student"
         role="student"
       />

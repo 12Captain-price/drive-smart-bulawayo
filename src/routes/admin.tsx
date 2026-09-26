@@ -26,6 +26,7 @@ import {
   Mail,
   MessageCircle,
   MessageCircleQuestion,
+  NotebookPen,
   Package as PackageIcon,
   Plus,
   Settings as SettingsIcon,
@@ -88,6 +89,7 @@ import { HelpPanel } from "@/components/admin/HelpPanel";
 import { OverviewPanel } from "@/components/admin/OverviewPanel";
 import { StaffAccountsPanel } from "@/components/admin/StaffAccountsPanel";
 import { SiteTrafficPanel } from "@/components/admin/SiteTrafficPanel";
+import { NotesPanel } from "@/components/admin/NotesPanel";
 import { resolveLoginEmail } from "@/lib/staff-auth-server";
 import { downloadSpreadsheet, parseCsv, printTable, type Row } from "@/lib/docs";
 import { printPaymentReceipt, printStudentProfile } from "@/lib/receipts";
@@ -185,6 +187,7 @@ const SECTIONS = [
   "Schedule",
   "Payments",
   "Tests",
+  "Notes",
   "Packages",
   "Instructors",
   "About Page",
@@ -215,6 +218,7 @@ const NAV_ICONS: Record<SectionName, typeof Inbox> = {
   Schedule: CalendarClock,
   Payments: Wallet,
   Tests: ClipboardCheck,
+  Notes: NotebookPen,
   Packages: PackageIcon,
   Instructors: UserCog,
   "About Page": FileText,
@@ -236,7 +240,7 @@ const NAV_ICONS: Record<SectionName, typeof Inbox> = {
 const NAV_GROUPS: { label: string; items: SectionName[] }[] = [
   // "Site Traffic" is filtered out of this group for non-managers at render time.
   { label: "Overview", items: ["Overview", "Site Traffic"] },
-  { label: "Operations", items: ["Enquiries", "Students", "Schedule", "Payments", "Tests"] },
+  { label: "Operations", items: ["Enquiries", "Students", "Schedule", "Payments", "Tests", "Notes"] },
   {
     label: "Content & site",
     items: [
@@ -709,6 +713,7 @@ function Admin() {
           )}
           {section === "Payments" && <PaymentsPanel onScheduleNow={goToSchedule} />}
           {section === "Tests" && <TestsPanel />}
+          {section === "Notes" && <NotesPanel />}
 
           {section === "Packages" && <PackagesPanel />}
           {section === "Instructors" && <InstructorsPanel />}

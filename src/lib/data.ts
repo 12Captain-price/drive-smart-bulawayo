@@ -804,7 +804,8 @@ type RemoteKey =
   | "enquiries"
   | "team"
   | "payments"
-  | "aboutSections";
+  | "aboutSections"
+  | "studentNotes";
 
 const remoteCache = new Map<RemoteKey, unknown[]>();
 const remoteFetchState = new Map<RemoteKey, "loading" | "done">();
@@ -2878,6 +2879,91 @@ export function findLessonConflict(
       return start < lEnd && lStart < end;
     }) ?? null
   );
+}
+
+/* ------------------------------ student notes ------------------------------ */
+
+/**
+ * A note (write-up, revision points, etc.) an instructor/admin leaves for a
+ * specific student — most often after a provisional lesson. Students read
+ * these on the My Lessons page (after the same name + last-4-of-phone
+ * lookup used for fetchMyLessonsAsStudent); there is no expiry, so a
+ * student can log in and out as many times as they like and always find
+ * them again. The reading side never downloads a file — see
+ * fetchMyNotesAsStudent and the read-only viewer in my-lessons.tsx.
+ */
+export interface StudentNote {
+  id: string;
+  studentId: string;
+  lessonType: LessonType | "general";
+  title: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function studentNoteFromRow(row: any): StudentNote {
+  return {
+    id: row.id,
+    studentId: row.student_id,
+    lessonType: row.lesson_type ?? "general",
+    title: row.title ?? "",
+    body: row.body ?? "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? row.created_at,
+  };
+}
+
+function studentNoteToRow(item: Partial<StudentNote>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (has(item, "studentId")) row.student_id = item.studentId;
+  if (has(item, "lessonType")) row.lesson_type = item.lessonType;
+  if (has(item, "title")) row.title = item.title;
+  if (has(item, "body")) row.body = item.body;
+  if (has(item, "createdAt")) row.created_at = item.createdAt;
+  return row;
+}
+
+/** Admin/instructor side — same optimistic Supabase-backed collection as
+ *  every other admin table (students, lessons, tests…). */
+export const useStudentNotes = () =>
+  useRemoteCollection<StudentNote>({
+    key: "studentNotes",
+    table: "student_notes",
+    orderColumn: "created_at",
+    fromRow: studentNoteFromRow,
+    toRow: studentNoteToRow,
+  });
+
+/**
+ * Student side — same name + last-4-of-phone lookup as
+ * fetchMyLessonsAsStudent, and deliberately not a direct table read: the
+ * RPC (get_my_notes_student, security definer) is what scopes the result
+ * to just that student instead of the whole student_notes table.
+ * Returns null when the name/phone don't match any student.
+ */
+export async function fetchMyNotesAsStudent(
+  name: string,
+  phoneLast4: string,
+): Promise<{ studentName: string; notes: StudentNote[] } | null> {
+  const { data, error } = await (supabase as any).rpc("get_my_notes_student", {
+    p_name: name,
+    p_phone_last4: phoneLast4,
+  });
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    studentName: data.studentName,
+    notes: (data.notes as any[]).map((n) => ({
+      id: n.id,
+      studentId: n.studentId ?? "",
+      lessonType: n.lessonType ?? "general",
+      title: n.title ?? "",
+      body: n.body ?? "",
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt ?? n.createdAt,
+    })),
+  };
 }
 
 /** Long random single-use token. */

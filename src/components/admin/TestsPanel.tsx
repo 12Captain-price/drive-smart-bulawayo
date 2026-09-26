@@ -2712,7 +2712,7 @@ function SubmissionCard({
           {test?.type === "mcq" && (
             <details className="text-sm">
               <summary className="cursor-pointer">See their answers</summary>
-              <ol className="mt-2 space-y-1 pl-5">
+              <ol className="mt-2 list-decimal space-y-1 pl-5 marker:text-muted-foreground marker:font-mono marker:text-xs">
                 {test.questions.map((q) => {
                   const given = sub.answers[q.id];
                   const right = given === q.correct;
