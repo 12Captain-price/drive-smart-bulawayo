@@ -103,6 +103,7 @@ import {
   STUDENT_LESSON_TEMPLATE_TOKENS,
   ENQUIRY_FOLLOWUP_TEMPLATE_TOKENS,
   RESCHEDULE_TEMPLATE_TOKENS,
+  NOTE_TEMPLATE_TOKENS,
   WEEKLY_PLAN_TEMPLATE_TOKENS,
   ENQUIRY_STATUSES,
   PAYMENT_STATUSES,
@@ -2589,6 +2590,20 @@ function SettingsPanel() {
           <p className="text-muted-foreground text-xs">
             Tokens: {RESCHEDULE_TEMPLATE_TOKENS.join(" ")}, sent to the office WhatsApp number
             above when a student taps "Request reschedule" on their /my-lessons page.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:col-span-2">
+          <Label>WhatsApp message: new note sent</Label>
+          <Textarea
+            rows={5}
+            className="font-mono text-xs"
+            value={settings.waNoteTemplate}
+            onChange={(e) => save({ waNoteTemplate: e.target.value })}
+          />
+          <p className="text-muted-foreground text-xs">
+            Tokens: {NOTE_TEMPLATE_TOKENS.join(" ")}, used by "Notify on WhatsApp" on the Notes
+            tab, sent to the student's phone.
           </p>
         </div>
 

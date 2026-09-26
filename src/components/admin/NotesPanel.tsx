@@ -4,6 +4,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Lock,
+  MessageCircle,
   NotebookPen,
   Paperclip,
   Pencil,
@@ -41,9 +42,12 @@ import { isDocxFile } from "@/lib/docx";
 import {
   errorMessage,
   isPdfFile,
+  renderTemplate,
   uploadTestFileToStorage,
+  useSettings,
   useStudents,
   useStudentNotes,
+  waLink,
   type LessonType,
   type StudentNote,
 } from "@/lib/data";
@@ -63,6 +67,8 @@ const LESSON_TYPE_LABEL: Record<LessonType | "general", string> = {
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
+
+const origin = () => (typeof window === "undefined" ? "" : window.location.origin);
 
 /** Small "PDF" / "Word" / "Photo" pill for a note's attachment, if it has one. */
 function AttachmentBadge({ note }: { note: StudentNote }) {
@@ -91,6 +97,7 @@ function AttachmentBadge({ note }: { note: StudentNote }) {
 export function NotesPanel() {
   const { items: students } = useStudents();
   const { items: notes, add, update, remove } = useStudentNotes();
+  const { settings } = useSettings();
 
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<StudentNote | null>(null);
@@ -98,6 +105,21 @@ export function NotesPanel() {
   const [deleteTarget, setDeleteTarget] = useState<StudentNote | null>(null);
 
   const studentName = (id: string) => students.find((s) => s.id === id)?.name ?? "Unknown student";
+
+  /** Builds the "Send to student" WhatsApp link for a note — same
+   *  pattern as the Schedule tab's "Send to student" button: an editable
+   *  template rendered with this note's details, opened as a wa.me link
+   *  the moment staff click it (no extra confirm step). */
+  function notifyHref(n: StudentNote) {
+    const student = students.find((s) => s.id === n.studentId);
+    if (!student?.phone) return undefined;
+    const message = renderTemplate(settings.waNoteTemplate, {
+      student: student.name,
+      title: n.title || "a note",
+      link: `${origin()}/my-lessons`,
+    });
+    return waLink(student.phone, message);
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -157,8 +179,10 @@ export function NotesPanel() {
         </Card>
       ) : (
         <div className="grid gap-3">
-          {filtered.map((n) => (
-            <Card key={n.id} className="transition-shadow hover:shadow-md">
+          {filtered.map((n) => {
+            const waHref = notifyHref(n);
+            return (
+              <Card key={n.id} className="transition-shadow hover:shadow-md">
               <CardContent className="flex flex-wrap items-start justify-between gap-3 pt-6">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -177,7 +201,18 @@ export function NotesPanel() {
                     </p>
                   )}
                 </div>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {waHref ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={waHref} target="_blank" rel="noreferrer">
+                        <MessageCircle className="size-4" /> Notify on WhatsApp
+                      </a>
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground font-normal">
+                      No phone on file
+                    </Badge>
+                  )}
                   <Button variant="outline" size="icon" onClick={() => openEdit(n)} aria-label="Edit note">
                     <Pencil className="size-4" />
                   </Button>
@@ -192,7 +227,8 @@ export function NotesPanel() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 

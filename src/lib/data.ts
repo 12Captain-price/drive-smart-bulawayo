@@ -310,6 +310,8 @@ export interface SiteSettings {
   waStudentLessonTemplate: string;
   /** WhatsApp message pre-filled when a student taps "Request reschedule" on their lesson. Supports tokens. */
   waRescheduleTemplate: string;
+  /** WhatsApp message pre-filled from the Notes tab's "Send to student" button. Supports tokens. */
+  waNoteTemplate: string;
   /** WhatsApp follow-up message pre-filled from the Enquiries tab. Supports tokens. */
   waEnquiryFollowUpTemplate: string;
   /** WhatsApp message sent to a student or instructor with a whole week's lessons. Supports tokens. */
@@ -397,6 +399,13 @@ export const defaultSettings: SiteSettings = {
     "Currently booked: {date} at {time}",
     "",
     "Please let me know what other times are available. Thank you!",
+  ].join("\n"),
+  waNoteTemplate: [
+    "Hi {student}, we've sent you new notes: \"{title}\".",
+    "You can read them anytime on My Lessons — no need to download anything, just look them up",
+    "again with your name and phone number like you do for your lesson schedule.",
+    "",
+    "{link}",
   ].join("\n"),
   waEnquiryFollowUpTemplate: [
     "Hi {name}, thanks for your enquiry with Auto Driving School!",
@@ -2520,6 +2529,9 @@ export const STUDENT_LESSON_TEMPLATE_TOKENS = [
 
 /** Tokens available inside the reschedule-request WhatsApp template. */
 export const RESCHEDULE_TEMPLATE_TOKENS = ["{student}", "{date}", "{time}"];
+
+/** Tokens available inside the "new note sent" WhatsApp template. */
+export const NOTE_TEMPLATE_TOKENS = ["{student}", "{title}", "{link}"];
 
 /** Tokens available inside the enquiry follow-up WhatsApp template. */
 export const ENQUIRY_FOLLOWUP_TEMPLATE_TOKENS = [
