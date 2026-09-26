@@ -2,15 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
+  ArrowLeft,
   CalendarCheck2,
   CalendarClock,
   CalendarPlus,
   CalendarX2,
+  Car,
   CheckCircle2,
   ChevronRight,
   Clock,
+  FileText,
   GraduationCap,
   History,
+  Image as ImageIcon,
   ListChecks,
   Lock,
   MessageCircle,
@@ -232,7 +236,6 @@ function LessonRow({
 function ScheduleView({
   greetingName,
   lessons,
-  notes,
   otherPartyLabel,
   onReset,
   resetLabel,
@@ -240,8 +243,6 @@ function ScheduleView({
 }: {
   greetingName: string;
   lessons: MyLesson[];
-  /** Notes staff have sent this student — students only (see role below). */
-  notes?: StudentNote[];
   otherPartyLabel: (l: MyLesson) => string;
   onReset: () => void;
   resetLabel: string;
@@ -250,7 +251,6 @@ function ScheduleView({
 }) {
   const [showHistory, setShowHistory] = useState(false);
   const { settings } = useSettings();
-  const showNotes = role === "student" && (notes?.length ?? 0) > 0;
 
   function rescheduleHref(l: MyLesson) {
     if (role !== "student" || l.status !== "scheduled") {
@@ -280,11 +280,6 @@ function ScheduleView({
             {resetLabel}
           </Button>
         </div>
-        {showNotes && (
-          <div className="mt-10 text-left">
-            <NotesSection notes={notes!} />
-          </div>
-        )}
       </div>
     );
   }
@@ -404,12 +399,6 @@ function ScheduleView({
         </div>
       )}
 
-      {showNotes && (
-        <div className="mt-8">
-          <NotesSection notes={notes!} />
-        </div>
-      )}
-
       <Button variant="ghost" size="sm" className="mt-8" onClick={onReset}>
         {resetLabel}
       </Button>
@@ -423,50 +412,107 @@ const NOTE_LESSON_TYPE_LABEL: Record<StudentNote["lessonType"], string> = {
   general: "General",
 };
 
+const NOTE_TYPE_ICON: Record<StudentNote["lessonType"], typeof GraduationCap> = {
+  provisional: GraduationCap,
+  driving: Car,
+  general: NotebookText,
+};
+
 function fmtNoteDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-/** Read-only notes staff have sent this student — no download, no expiry,
- *  the student can come back to these on every visit. */
-function NotesSection({ notes }: { notes: StudentNote[] }) {
-  const [open, setOpen] = useState<StudentNote | null>(null);
-  const sorted = [...notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-
-  return (
-    <div>
-      <h3 className="text-muted-foreground flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
-        <NotebookText className="size-3.5" /> Notes from your instructor
-      </h3>
-      <div className="mt-3 space-y-2">
-        {sorted.map((n) => (
-          <button
-            key={n.id}
-            onClick={() => setOpen(n)}
-            className="border-border/60 bg-card hover:border-primary/40 hover:shadow-sm flex w-full items-start justify-between gap-3 rounded-xl border px-4 py-3 text-left transition"
-          >
-            <div className="min-w-0">
-              <p className="truncate font-medium">{n.title || "(untitled note)"}</p>
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                {NOTE_LESSON_TYPE_LABEL[n.lessonType]} · {fmtNoteDate(n.createdAt)}
-                {n.fileUrl && ` · ${noteAttachmentLabel(n)}`}
-              </p>
-            </div>
-            <ChevronRight className="text-muted-foreground mt-1 size-4 shrink-0" />
-          </button>
-        ))}
-      </div>
-
-      <NoteViewer note={open} onOpenChange={(o) => !o && setOpen(null)} />
-    </div>
-  );
-}
-
-/** "PDF" / "Word doc" / "Photo" — shown next to a note that has an attachment. */
+/** "PDF" / "Word doc" / "Photo" — shown on a note card that has an attachment. */
 function noteAttachmentLabel(n: StudentNote) {
   if (isPdfFile(n.fileUrl, n.fileName)) return "PDF";
   if (isDocxFile(n.fileUrl, n.fileName)) return "Word doc";
   return "Photo";
+}
+
+/**
+ * A single note, styled like the "combo" package cards on /packages (dashed
+ * accent border, soft gradient, a pill badge, a rounded gradient CTA) since
+ * that's the look the school wanted to reuse here.
+ */
+function NoteCard({ note, onOpen }: { note: StudentNote; onOpen: () => void }) {
+  const TypeIcon = NOTE_TYPE_ICON[note.lessonType];
+  const hasFile = Boolean(note.fileUrl);
+  const AttachIcon = !hasFile ? null : isPdfFile(note.fileUrl, note.fileName) || isDocxFile(note.fileUrl, note.fileName) ? FileText : ImageIcon;
+
+  return (
+    <Card
+      className={cn(
+        "border-accent/50 from-accent/[0.08] via-primary/[0.04] relative flex h-full flex-col overflow-hidden rounded-3xl border-dashed bg-gradient-to-br to-transparent transition-[transform,box-shadow] duration-300 will-change-transform",
+        "hover:-translate-y-1.5 hover:shadow-lg",
+      )}
+    >
+      <span className="from-accent to-primary text-primary-foreground absolute top-5 left-5 inline-flex items-center gap-1 rounded-full bg-gradient-to-r px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase shadow-sm">
+        <TypeIcon size={10} /> {NOTE_LESSON_TYPE_LABEL[note.lessonType]}
+      </span>
+      {hasFile && AttachIcon && (
+        <span className="label-mono bg-secondary absolute top-5 right-5 flex items-center gap-1 rounded-md px-2 py-1">
+          <AttachIcon size={10} /> {noteAttachmentLabel(note)}
+        </span>
+      )}
+      <CardContent className="flex flex-1 flex-col pt-14">
+        <h3 className="text-lg font-semibold tracking-tight">{note.title || "(untitled note)"}</h3>
+        <p className="text-muted-foreground mt-1 text-xs">{fmtNoteDate(note.createdAt)}</p>
+        {note.body && <p className="text-muted-foreground mt-3 line-clamp-3 text-sm">{note.body}</p>}
+        <ul className="mt-4 flex-1 space-y-2 text-sm">
+          <li className="flex items-start gap-2">
+            <span className="text-accent mt-0.5">✓</span> Read-only, no download
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-accent mt-0.5">✓</span> Never expires, check back any time
+          </li>
+        </ul>
+        <Button
+          onClick={onOpen}
+          className="from-accent to-primary text-primary-foreground mt-6 w-full rounded-full font-semibold bg-gradient-to-r hover:brightness-110"
+        >
+          View note
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Read-only notes staff have sent this student — no download, no expiry,
+ *  the student can come back to these on every visit. */
+function NotesGrid({ notes, onReset }: { notes: StudentNote[]; onReset: () => void }) {
+  const [open, setOpen] = useState<StudentNote | null>(null);
+  const sorted = [...notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  if (sorted.length === 0) {
+    return (
+      <div className="text-center">
+        <div className="bg-secondary text-muted-foreground mx-auto flex size-14 items-center justify-center rounded-full">
+          <NotebookText className="size-6" />
+        </div>
+        <p className="mt-4 text-lg font-medium">No notes yet</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Once your instructor sends you notes to revise, they'll show up here.
+        </p>
+        <Button variant="ghost" size="sm" className="mt-5" onClick={onReset}>
+          Check a different student
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="grid gap-5 sm:grid-cols-2">
+        {sorted.map((n) => (
+          <NoteCard key={n.id} note={n} onOpen={() => setOpen(n)} />
+        ))}
+      </div>
+      <NoteViewer note={open} onOpenChange={(o) => !o && setOpen(null)} />
+      <Button variant="ghost" size="sm" className="mt-8" onClick={onReset}>
+        Check a different student
+      </Button>
+    </div>
+  );
 }
 
 /** Shows a note read-only — its typed text, and/or an attached PDF, Word
@@ -532,6 +578,139 @@ function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenCh
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function BackButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-muted-foreground hover:text-foreground mb-5 inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
+    >
+      <ArrowLeft className="size-4" /> {label}
+    </button>
+  );
+}
+
+function ChoiceCard({
+  icon: Icon,
+  title,
+  description,
+  onClick,
+}: {
+  icon: typeof CalendarClock;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="border-border/60 bg-card hover:border-primary/40 group relative flex flex-col items-start gap-3 overflow-hidden rounded-3xl border p-6 text-left transition-[transform,box-shadow] duration-300 will-change-transform hover:-translate-y-1.5 hover:shadow-lg"
+    >
+      <div className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground flex size-12 items-center justify-center rounded-2xl transition-colors">
+        <Icon className="size-6" />
+      </div>
+      <div>
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <p className="text-muted-foreground mt-1 text-sm">{description}</p>
+      </div>
+      <span className="text-primary mt-1 inline-flex items-center gap-1 text-sm font-medium">
+        View <ChevronRight className="size-4" />
+      </span>
+    </button>
+  );
+}
+
+/**
+ * What a student sees right after their name + last-4-of-phone lookup
+ * succeeds: a choice between their lesson Schedule and their In-Class
+ * Notes, rather than everything stacked on one long page. Both sub-views
+ * share the same already-fetched data, so switching between them (or going
+ * "back") never asks the student to look themselves up again.
+ */
+function StudentHome({
+  greetingName,
+  lessons,
+  notes,
+  onReset,
+}: {
+  greetingName: string;
+  lessons: MyLesson[];
+  notes: StudentNote[];
+  onReset: () => void;
+}) {
+  const [view, setView] = useState<"choice" | "schedule" | "notes">("choice");
+  const backToChoice = () => setView("choice");
+
+  if (view === "schedule") {
+    return (
+      <div className="mt-6">
+        <BackButton onClick={backToChoice} label="Back to your options" />
+        <ScheduleView
+          greetingName={greetingName}
+          lessons={lessons}
+          otherPartyLabel={(l) => l.instructorName ?? "an instructor"}
+          onReset={onReset}
+          resetLabel="Check a different student"
+          role="student"
+        />
+      </div>
+    );
+  }
+
+  if (view === "notes") {
+    return (
+      <div className="mt-6">
+        <BackButton onClick={backToChoice} label="Back to your options" />
+        <h3 className="text-muted-foreground flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
+          <NotebookText className="size-3.5" /> In-Class Notes
+        </h3>
+        <div className="mt-4">
+          <NotesGrid notes={notes} onReset={onReset} />
+        </div>
+      </div>
+    );
+  }
+
+  const upcomingCount = lessons.filter(
+    (l) => l.status === "scheduled" && new Date(l.startsAt) > new Date(),
+  ).length;
+
+  return (
+    <div className="mt-6">
+      <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 flex items-center gap-2 duration-500">
+        <Sparkles className="text-accent size-4" />
+        <p className="text-lg font-medium">Hi {greetingName.split(" ")[0]}, what would you like to check?</p>
+      </div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <ChoiceCard
+          icon={CalendarClock}
+          title="Schedule"
+          description={
+            upcomingCount > 0
+              ? `${upcomingCount} upcoming lesson${upcomingCount === 1 ? "" : "s"}`
+              : "See your lesson history"
+          }
+          onClick={() => setView("schedule")}
+        />
+        <ChoiceCard
+          icon={NotebookText}
+          title="In-Class Notes"
+          description={
+            notes.length > 0
+              ? `${notes.length} note${notes.length === 1 ? "" : "s"} from your instructor`
+              : "Nothing sent yet"
+          }
+          onClick={() => setView("notes")}
+        />
+      </div>
+      <Button variant="ghost" size="sm" className="mt-8" onClick={onReset}>
+        Check a different student
+      </Button>
+    </div>
   );
 }
 
@@ -615,17 +794,14 @@ function StudentLookup() {
 
   if (result) {
     return (
-      <ScheduleView
+      <StudentHome
         greetingName={result.studentName}
         lessons={result.lessons}
         notes={notes}
-        otherPartyLabel={(l) => l.instructorName ?? "an instructor"}
         onReset={() => {
           setResult(null);
           setNotes([]);
         }}
-        resetLabel="Check a different student"
-        role="student"
       />
     );
   }
