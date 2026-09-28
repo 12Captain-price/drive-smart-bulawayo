@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { PdfPaper } from "@/components/site/PdfPaper";
 import { WordPaper } from "@/components/site/WordPaper";
+import { ProtectedContent } from "@/components/site/ProtectedContent";
 import { isDocxFile, extractDocxText } from "@/lib/docx";
 import { importDocxToDraftQuestions } from "@/lib/docxImport";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -201,7 +202,7 @@ function ExpandableMedia({
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <>
+    <ProtectedContent watermark="Auto Driving School · staff view">
       <div className={cn("bg-secondary/30 relative overflow-y-auto rounded-lg border", className)}>
         {isPdf ? (
           <PdfPaper src={src} className="size-full" />
@@ -234,7 +235,7 @@ function ExpandableMedia({
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </ProtectedContent>
   );
 }
 

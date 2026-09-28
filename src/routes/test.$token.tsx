@@ -35,6 +35,7 @@ import {
 import { Section } from "@/components/site/blocks";
 import { PdfPaper } from "@/components/site/PdfPaper";
 import { WordPaper } from "@/components/site/WordPaper";
+import { ProtectedContent } from "@/components/site/ProtectedContent";
 import { isDocxFile } from "@/lib/docx";
 import {
   fileToDataUrl,
@@ -542,6 +543,7 @@ function TakeTest() {
         : "Once you submit, you can't come back to change anything. Ready to send?";
 
   return (
+    <ProtectedContent watermark={student?.name}>
     <Section className={cn("select-none", test.type === "pdf" ? "max-w-5xl" : "max-w-2xl")}>
       <div
         className={cn(
@@ -804,5 +806,6 @@ function TakeTest() {
         </AlertDialogContent>
       </AlertDialog>
     </Section>
+    </ProtectedContent>
   );
 }

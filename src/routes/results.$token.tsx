@@ -3,6 +3,7 @@ import { AlertCircle, Award, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/site/blocks";
+import { ProtectedContent } from "@/components/site/ProtectedContent";
 import { useAssignments, useSettings, useStudents, useSubmissions, useTests, waLink } from "@/lib/data";
 
 export const Route = createFileRoute("/results/$token")({
@@ -68,6 +69,7 @@ function Results() {
     (submission.autoTotal !== undefined ? `${submission.autoScore}/${submission.autoTotal}` : "Being marked");
 
   return (
+    <ProtectedContent watermark={student?.name}>
     <Section className="max-w-md">
       <Card className="shadow-lg">
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
@@ -114,5 +116,6 @@ function Results() {
         </CardContent>
       </Card>
     </Section>
+    </ProtectedContent>
   );
 }

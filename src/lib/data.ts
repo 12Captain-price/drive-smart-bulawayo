@@ -17,6 +17,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { supabase } from "./supabase";
 import type { PdfMatchRow } from "./pdfMatch";
+import { decodeAttachments, type NoteAttachment } from "./attachments";
 
 /** True when a key has patch[key] explicitly set (including to undefined),
  *  as opposed to the key being absent from the patch entirely. Needed so a
@@ -2916,6 +2917,8 @@ export interface StudentNote {
   body: string;
   fileUrl?: string;
   fileName?: string;
+  /** Every attached file, decoded from fileUrl (one plain URL, or several packed as JSON). */
+  attachments: NoteAttachment[];
   createdAt: string;
   updatedAt: string;
 }
@@ -2929,6 +2932,7 @@ function studentNoteFromRow(row: any): StudentNote {
     body: row.body ?? "",
     fileUrl: row.file_url ?? undefined,
     fileName: row.file_name ?? undefined,
+    attachments: decodeAttachments(row.file_url, row.file_name),
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? row.created_at,
   };
@@ -2994,6 +2998,7 @@ export async function fetchMyNotesAsStudent(
       body: n.body ?? "",
       fileUrl: n.fileUrl ?? undefined,
       fileName: n.fileName ?? undefined,
+      attachments: decodeAttachments(n.fileUrl, n.fileName),
       createdAt: n.createdAt,
       updatedAt: n.updatedAt ?? n.createdAt,
     })),

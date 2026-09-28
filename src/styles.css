@@ -201,3 +201,27 @@
     transform: translate(120px, 60px) rotate(170deg);
   }
 }
+/* Screenshot / copy protection for tests, results and notes (see
+   components/site/ProtectedContent.tsx). Printing shows nothing sensitive,
+   and typing fields inside protected pages stay usable. */
+[data-protected] img,
+[data-protected] canvas {
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+[data-protected] input,
+[data-protected] textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+@media print {
+  [data-protected] {
+    display: none !important;
+  }
+  body::before {
+    content: "Printing is disabled for this page.";
+    display: block;
+    padding: 2rem;
+    font-size: 1.25rem;
+  }
+}

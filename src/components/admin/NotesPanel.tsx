@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Eye,
   FileText,
   Image as ImageIcon,
   Loader2,
@@ -10,14 +11,17 @@ import {
   Pencil,
   Plus,
   Search,
+  Sheet as SheetIcon,
   Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -38,10 +42,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { isDocxFile } from "@/lib/docx";
+import { NoteAttachments } from "@/components/site/AttachmentView";
+import {
+  MAX_NOTE_ATTACHMENTS,
+  attachmentKind,
+  attachmentKindLabel,
+  encodeAttachments,
+  type NoteAttachment,
+} from "@/lib/attachments";
 import {
   errorMessage,
-  isPdfFile,
   renderTemplate,
   uploadTestFileToStorage,
   useSettings,
@@ -51,6 +61,10 @@ import {
   type LessonType,
   type StudentNote,
 } from "@/lib/data";
+
+const ACCEPT_FILES =
+  "application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document," +
+  ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*";
 
 const LESSON_TYPE_OPTIONS: { value: LessonType | "general"; label: string }[] = [
   { value: "provisional", label: "Provisional lesson" },
@@ -65,20 +79,27 @@ const LESSON_TYPE_LABEL: Record<LessonType | "general", string> = {
 };
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 const origin = () => (typeof window === "undefined" ? "" : window.location.origin);
 
-/** Small "PDF" / "Word" / "Photo" pill for a note's attachment, if it has one. */
+/** Small "PDF" / "Word doc" / "Spreadsheet" / "Photo" pill (or "3 files") for a note's attachments. */
 function AttachmentBadge({ note }: { note: StudentNote }) {
-  if (!note.fileUrl) return null;
-  const label = isPdfFile(note.fileUrl, note.fileName)
-    ? "PDF"
-    : isDocxFile(note.fileUrl, note.fileName)
-      ? "Word doc"
-      : "Photo";
-  const Icon = label === "Photo" ? ImageIcon : FileText;
+  const files = note.attachments;
+  if (files.length === 0) return null;
+  const kind = attachmentKind(files[0].url, files[0].name);
+  const label = files.length > 1 ? `${files.length} files` : attachmentKindLabel(kind);
+  const Icon =
+    files.length === 1 && kind === "image"
+      ? ImageIcon
+      : kind === "xlsx" && files.length === 1
+        ? SheetIcon
+        : FileText;
   return (
     <Badge variant="outline" className="gap-1 font-normal">
       <Icon className="size-3" /> {label}
@@ -96,13 +117,14 @@ function AttachmentBadge({ note }: { note: StudentNote }) {
  */
 export function NotesPanel() {
   const { items: students } = useStudents();
-  const { items: notes, add, update, remove } = useStudentNotes();
+  const { items: notes, add, addMany, update, remove } = useStudentNotes();
   const { settings } = useSettings();
 
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<StudentNote | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StudentNote | null>(null);
+  const [previewNote, setPreviewNote] = useState<StudentNote | null>(null);
 
   const studentName = (id: string) => students.find((s) => s.id === id)?.name ?? "Unknown student";
 
@@ -148,9 +170,10 @@ export function NotesPanel() {
         <div>
           <h1 className="text-xl font-semibold">Notes</h1>
           <p className="text-muted-foreground mt-1 max-w-prose text-sm">
-            Send a student notes to revise — a PDF, a Word doc, a photo, or just typed text — after
-            a provisional lesson or anytime. They see them read-only on the My Lessons page: no
-            download, and no expiry, so they can check back whenever they need to.
+            Send one or more students notes to revise — PDFs, Word docs, Excel sheets, photos, or
+            just typed text — after a provisional lesson or anytime. They see them read-only on the
+            My Lessons page: no download, and no expiry, so they can check back whenever they need
+            to.
           </p>
         </div>
         <Button onClick={openNew}>
@@ -183,50 +206,64 @@ export function NotesPanel() {
             const waHref = notifyHref(n);
             return (
               <Card key={n.id} className="transition-shadow hover:shadow-md">
-              <CardContent className="flex flex-wrap items-start justify-between gap-3 pt-6">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-semibold">{n.title || "(untitled note)"}</h3>
-                    <Badge variant="secondary" className="font-normal">
-                      {LESSON_TYPE_LABEL[n.lessonType]}
-                    </Badge>
-                    <AttachmentBadge note={n} />
-                  </div>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    {studentName(n.studentId)} · {fmtDate(n.createdAt)}
-                  </p>
-                  {n.body && (
-                    <p className="text-muted-foreground mt-2 line-clamp-2 text-sm whitespace-pre-line">
-                      {n.body}
+                <CardContent className="flex flex-wrap items-start justify-between gap-3 pt-6">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">{n.title || "(untitled note)"}</h3>
+                      <Badge variant="secondary" className="font-normal">
+                        {LESSON_TYPE_LABEL[n.lessonType]}
+                      </Badge>
+                      <AttachmentBadge note={n} />
+                    </div>
+                    <p className="text-muted-foreground mt-1 text-sm">
+                      {studentName(n.studentId)} · {fmtDate(n.createdAt)}
                     </p>
-                  )}
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {waHref ? (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={waHref} target="_blank" rel="noreferrer">
-                        <MessageCircle className="size-4" /> Notify on WhatsApp
-                      </a>
+                    {n.body && (
+                      <p className="text-muted-foreground mt-2 line-clamp-2 text-sm whitespace-pre-line">
+                        {n.body}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {waHref ? (
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={waHref} target="_blank" rel="noreferrer">
+                          <MessageCircle className="size-4" /> Notify on WhatsApp
+                        </a>
+                      </Button>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground font-normal">
+                        No phone on file
+                      </Badge>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setPreviewNote(n)}
+                      aria-label="Preview note as the student sees it"
+                      title="Preview as the student sees it"
+                    >
+                      <Eye className="size-4" />
                     </Button>
-                  ) : (
-                    <Badge variant="outline" className="text-muted-foreground font-normal">
-                      No phone on file
-                    </Badge>
-                  )}
-                  <Button variant="outline" size="icon" onClick={() => openEdit(n)} aria-label="Edit note">
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setDeleteTarget(n)}
-                    aria-label="Delete note"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => openEdit(n)}
+                      aria-label="Edit note"
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setDeleteTarget(n)}
+                      aria-label="Delete note"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
@@ -237,17 +274,62 @@ export function NotesPanel() {
         onOpenChange={setComposerOpen}
         note={editing}
         students={students}
-        onSave={(payload) => {
+        onSave={({ studentIds, ...payload }) => {
           if (editing) {
-            update(editing.id, payload);
+            update(editing.id, { ...payload, studentId: studentIds[0] });
             toast.success("Note updated");
           } else {
-            add({ ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-            toast.success("Note sent — the student will see it on My Lessons");
+            const now = new Date().toISOString();
+            const list = studentIds.map((studentId) => ({
+              ...payload,
+              studentId,
+              createdAt: now,
+              updatedAt: now,
+            }));
+            if (list.length === 1) add(list[0]);
+            else addMany(list);
+            toast.success(
+              list.length === 1
+                ? "Note sent — the student will see it on My Lessons"
+                : `Note sent to ${list.length} students — they'll see it on My Lessons`,
+            );
           }
           setComposerOpen(false);
         }}
       />
+
+      <Dialog open={!!previewNote} onOpenChange={(o) => !o && setPreviewNote(null)}>
+        <DialogContent
+          className={cn(
+            "flex flex-col gap-3",
+            previewNote && previewNote.attachments.length > 0
+              ? "h-[85vh] w-[95vw] max-w-2xl"
+              : "sm:max-w-lg",
+          )}
+        >
+          {previewNote && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{previewNote.title || "(untitled note)"}</DialogTitle>
+                <DialogDescription>
+                  Preview — this is what {studentName(previewNote.studentId)} sees.
+                </DialogDescription>
+              </DialogHeader>
+              <NoteAttachments
+                attachments={previewNote.attachments}
+                title={previewNote.title}
+                watermark="Preview"
+                className="flex-1"
+              />
+              {previewNote.body && (
+                <div className="bg-secondary/40 max-h-40 shrink-0 overflow-y-auto rounded-lg border p-4 text-sm whitespace-pre-line">
+                  {previewNote.body}
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -256,8 +338,9 @@ export function NotesPanel() {
             <AlertDialogDescription>
               {deleteTarget && (
                 <>
-                  "{deleteTarget.title || "(untitled note)"}" for {studentName(deleteTarget.studentId)}{" "}
-                  will no longer be visible to the student. This can't be undone.
+                  "{deleteTarget.title || "(untitled note)"}" for{" "}
+                  {studentName(deleteTarget.studentId)} will no longer be visible to the student.
+                  This can't be undone.
                 </>
               )}
             </AlertDialogDescription>
@@ -283,12 +366,14 @@ export function NotesPanel() {
 }
 
 type NotePayload = {
-  studentId: string;
+  /** One id when editing; one or more when sending a new note. */
+  studentIds: string[];
   lessonType: LessonType | "general";
   title: string;
   body: string;
   fileUrl?: string;
   fileName?: string;
+  attachments: NoteAttachment[];
 };
 
 function NoteComposer({
@@ -304,12 +389,15 @@ function NoteComposer({
   students: { id: string; name: string; phone: string }[];
   onSave: (payload: NotePayload) => void;
 }) {
-  const [studentId, setStudentId] = useState(note?.studentId ?? "");
-  const [lessonType, setLessonType] = useState<LessonType | "general">(note?.lessonType ?? "provisional");
+  const [studentIds, setStudentIds] = useState<string[]>(note ? [note.studentId] : []);
+  const [studentQuery, setStudentQuery] = useState("");
+  const [lessonType, setLessonType] = useState<LessonType | "general">(
+    note?.lessonType ?? "provisional",
+  );
   const [title, setTitle] = useState(note?.title ?? "");
   const [body, setBody] = useState(note?.body ?? "");
-  const [fileUrl, setFileUrl] = useState(note?.fileUrl ?? "");
-  const [fileName, setFileName] = useState(note?.fileName ?? "");
+  const [attachments, setAttachments] = useState<NoteAttachment[]>(note?.attachments ?? []);
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
 
   // Re-seed the form whenever a different note is opened for editing (or the
@@ -319,37 +407,92 @@ function NoteComposer({
   const wantedKey = note?.id ?? "new";
   if (open && seededFor !== wantedKey) {
     setSeededFor(wantedKey);
-    setStudentId(note?.studentId ?? "");
+    setStudentIds(note ? [note.studentId] : []);
+    setStudentQuery("");
     setLessonType(note?.lessonType ?? "provisional");
     setTitle(note?.title ?? "");
     setBody(note?.body ?? "");
-    setFileUrl(note?.fileUrl ?? "");
-    setFileName(note?.fileName ?? "");
+    setAttachments(note?.attachments ?? []);
+    setPreviewIdx(null);
   }
 
-  async function handleFile(file: File | undefined) {
-    if (!file) return;
+  const editing = Boolean(note);
+
+  const visibleStudents = useMemo(() => {
+    const q = studentQuery.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(
+      (s) => s.name.toLowerCase().includes(q) || s.phone.toLowerCase().includes(q),
+    );
+  }, [students, studentQuery]);
+
+  const toggleStudent = (id: string, on: boolean) =>
+    setStudentIds((cur) =>
+      on ? (cur.includes(id) ? cur : [...cur, id]) : cur.filter((x) => x !== id),
+    );
+
+  const allVisibleSelected =
+    visibleStudents.length > 0 && visibleStudents.every((s) => studentIds.includes(s.id));
+  const toggleAllVisible = () =>
+    setStudentIds((cur) =>
+      allVisibleSelected
+        ? cur.filter((id) => !visibleStudents.some((s) => s.id === id))
+        : [...cur, ...visibleStudents.map((s) => s.id).filter((id) => !cur.includes(id))],
+    );
+
+  async function handleFiles(list: FileList | null) {
+    const files = Array.from(list ?? []);
+    if (files.length === 0) return;
     setUploading(true);
+    let room = MAX_NOTE_ATTACHMENTS - attachments.length;
+    const added: NoteAttachment[] = [];
     try {
-      const url = await uploadTestFileToStorage(file);
-      setFileUrl(url);
-      setFileName(file.name);
-    } catch (err) {
-      toast.error(`Could not upload that file, ${errorMessage(err, "check your connection and try again.")}`, {
-        duration: Infinity,
-      });
+      for (const file of files) {
+        if (room <= 0) {
+          toast.error(`You can attach up to ${MAX_NOTE_ATTACHMENTS} files to one note.`);
+          break;
+        }
+        const isImage = file.type.startsWith("image/");
+        const isSupported =
+          isImage || /\.(pdf|docx|xlsx)$/i.test(file.name) || file.type === "application/pdf";
+        if (!isSupported) {
+          toast.error(
+            `"${file.name}" isn't supported. Use PDF, Word (.docx), Excel (.xlsx) or a photo.`,
+          );
+          continue;
+        }
+        try {
+          const url = await uploadTestFileToStorage(file);
+          added.push({ url, name: file.name });
+          room -= 1;
+        } catch (err) {
+          toast.error(
+            `Could not upload "${file.name}", ${errorMessage(err, "check your connection and try again.")}`,
+            { duration: Infinity },
+          );
+        }
+      }
     } finally {
+      if (added.length) setAttachments((cur) => [...cur, ...added]);
       setUploading(false);
     }
   }
 
-  const canSave = Boolean(studentId && title.trim() && (body.trim() || fileUrl) && !uploading);
+  const removeAttachment = (idx: number) => {
+    setAttachments((cur) => cur.filter((_, i) => i !== idx));
+    setPreviewIdx((p) => (p === null ? null : p === idx ? null : p > idx ? p - 1 : p));
+  };
+
+  const hasFiles = attachments.length > 0;
+  const canSave = Boolean(
+    studentIds.length > 0 && title.trim() && (body.trim() || hasFiles) && !uploading,
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{note ? "Edit note" : "New note for a student"}</DialogTitle>
+          <DialogTitle>{note ? "Edit note" : "New note for students"}</DialogTitle>
           <DialogDescription>
             They'll see this read-only on their My Lessons page — no download, and it stays there
             for them to revisit any time.
@@ -357,21 +500,77 @@ function NoteComposer({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid gap-2">
-            <Label>Student</Label>
-            <select
-              className="border-input bg-background h-9 rounded-md border px-3 text-sm"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-            >
-              <option value="">Select a student…</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}, {s.phone}
-                </option>
-              ))}
-            </select>
-          </div>
+          {editing ? (
+            <div className="grid gap-2">
+              <Label>Student</Label>
+              <select
+                className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+                value={studentIds[0] ?? ""}
+                onChange={(e) => setStudentIds(e.target.value ? [e.target.value] : [])}
+              >
+                <option value="">Select a student…</option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}, {s.phone}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Students</Label>
+                <span className="text-muted-foreground text-xs">
+                  {studentIds.length === 0 ? "None selected" : `${studentIds.length} selected`}
+                </span>
+              </div>
+              <div className="relative">
+                <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-3 size-4" />
+                <Input
+                  value={studentQuery}
+                  onChange={(e) => setStudentQuery(e.target.value)}
+                  placeholder="Search by name or phone…"
+                  className="h-9 pl-9"
+                  aria-label="Search students"
+                />
+              </div>
+              <div className="border-input max-h-44 divide-y overflow-y-auto rounded-md border">
+                {visibleStudents.length === 0 ? (
+                  <p className="text-muted-foreground p-3 text-center text-sm">
+                    No students match.
+                  </p>
+                ) : (
+                  <>
+                    <label className="bg-secondary/40 flex cursor-pointer items-center gap-3 px-3 py-2 text-sm font-medium">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        onCheckedChange={() => toggleAllVisible()}
+                      />
+                      {studentQuery.trim() ? "Select all matching" : "Select all"}
+                    </label>
+                    {visibleStudents.map((s) => (
+                      <label
+                        key={s.id}
+                        className="hover:bg-secondary/40 flex cursor-pointer items-center gap-3 px-3 py-2 text-sm"
+                      >
+                        <Checkbox
+                          checked={studentIds.includes(s.id)}
+                          onCheckedChange={(v) => toggleStudent(s.id, v === true)}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                        <span className="text-muted-foreground shrink-0 text-xs">{s.phone}</span>
+                      </label>
+                    ))}
+                  </>
+                )}
+              </div>
+              {studentIds.length > 1 && (
+                <p className="text-muted-foreground text-xs">
+                  Each student gets their own copy of this note.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label>Relates to</Label>
@@ -399,31 +598,66 @@ function NoteComposer({
           </div>
 
           <div className="grid gap-2">
-            <Label>Attach a file (PDF, Word doc, or photo) — optional</Label>
-            {fileName ? (
-              <div className="border-input bg-secondary/40 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                <Paperclip className="text-muted-foreground size-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{fileName}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFileUrl("");
-                    setFileName("");
-                  }}
-                  className="text-muted-foreground hover:text-foreground shrink-0"
-                  aria-label="Remove attachment"
-                >
-                  <X className="size-4" />
-                </button>
+            <Label>Attach files (PDF, Word, Excel, or photos) — optional</Label>
+            {hasFiles && (
+              <ul className="space-y-1.5">
+                {attachments.map((a, i) => (
+                  <li
+                    key={`${a.url}-${i}`}
+                    className="border-input bg-secondary/40 flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                  >
+                    <Paperclip className="text-muted-foreground size-4 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewIdx((p) => (p === i ? null : i))}
+                      className={cn(
+                        "hover:text-foreground flex shrink-0 items-center gap-1 text-xs font-medium",
+                        previewIdx === i ? "text-primary" : "text-muted-foreground",
+                      )}
+                      aria-label={`Preview ${a.name}`}
+                    >
+                      <Eye className="size-4" /> {previewIdx === i ? "Hide" : "Preview"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(i)}
+                      className="text-muted-foreground hover:text-foreground shrink-0"
+                      aria-label={`Remove ${a.name}`}
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {previewIdx !== null && attachments[previewIdx] && (
+              <div className="h-72">
+                <NoteAttachments
+                  attachments={[attachments[previewIdx]]}
+                  watermark="Preview"
+                  className="h-full"
+                />
               </div>
-            ) : (
+            )}
+            {attachments.length < MAX_NOTE_ATTACHMENTS && (
               <Input
                 type="file"
-                accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+                multiple
+                accept={ACCEPT_FILES}
                 disabled={uploading}
-                onChange={(e) => handleFile(e.target.files?.[0])}
+                onChange={(e) => {
+                  void handleFiles(e.target.files);
+                  e.target.value = "";
+                }}
               />
             )}
+            <p className="text-muted-foreground text-xs">
+              {hasFiles
+                ? "Pick more files to add to this note. "
+                : "You can select several files at once. "}
+              Up to {MAX_NOTE_ATTACHMENTS}.
+            </p>
             {uploading && (
               <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
                 <Loader2 className="size-3 animate-spin" /> Uploading…
@@ -432,12 +666,12 @@ function NoteComposer({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="note-body">{fileName ? "Add a note (optional)" : "Note"}</Label>
+            <Label htmlFor="note-body">{hasFiles ? "Add a note (optional)" : "Note"}</Label>
             <Textarea
               id="note-body"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              rows={fileName ? 4 : 8}
+              rows={hasFiles ? 4 : 8}
               placeholder="Write what you'd like the student to revise…"
             />
           </div>
@@ -457,17 +691,21 @@ function NoteComposer({
             disabled={!canSave}
             onClick={() =>
               onSave({
-                studentId,
+                studentIds,
                 lessonType,
                 title: title.trim(),
                 body: body.trim(),
-                fileUrl: fileUrl || undefined,
-                fileName: fileName || undefined,
+                attachments,
+                ...encodeAttachments(attachments),
               })
             }
           >
             <FileText className="size-4" />
-            {note ? "Save changes" : "Send note"}
+            {note
+              ? "Save changes"
+              : studentIds.length > 1
+                ? `Send to ${studentIds.length} students`
+                : "Send note"}
           </Button>
         </DialogFooter>
       </DialogContent>

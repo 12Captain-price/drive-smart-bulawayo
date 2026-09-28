@@ -36,16 +36,15 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Section, SectionHeading } from "@/components/site/blocks";
-import { PdfPaper } from "@/components/site/PdfPaper";
-import { WordPaper } from "@/components/site/WordPaper";
-import { isDocxFile } from "@/lib/docx";
+import { NoteAttachments } from "@/components/site/AttachmentView";
+import { ProtectedContent } from "@/components/site/ProtectedContent";
+import { attachmentKind, attachmentKindLabel } from "@/lib/attachments";
 import { cn } from "@/lib/utils";
 import {
   errorMessage,
   fetchMyLessonsAsInstructor,
   fetchMyLessonsAsStudent,
   fetchMyNotesAsStudent,
-  isPdfFile,
   renderTemplate,
   useSettings,
   waLink,
@@ -422,11 +421,10 @@ function fmtNoteDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-/** "PDF" / "Word doc" / "Photo" — shown on a note card that has an attachment. */
+/** "PDF" / "Word doc" / "Spreadsheet" / "Photo" (or "3 files") — shown on a note card that has attachments. */
 function noteAttachmentLabel(n: StudentNote) {
-  if (isPdfFile(n.fileUrl, n.fileName)) return "PDF";
-  if (isDocxFile(n.fileUrl, n.fileName)) return "Word doc";
-  return "Photo";
+  if (n.attachments.length > 1) return `${n.attachments.length} files`;
+  return attachmentKindLabel(attachmentKind(n.attachments[0].url, n.attachments[0].name));
 }
 
 /**
@@ -436,8 +434,9 @@ function noteAttachmentLabel(n: StudentNote) {
  */
 function NoteCard({ note, onOpen }: { note: StudentNote; onOpen: () => void }) {
   const TypeIcon = NOTE_TYPE_ICON[note.lessonType];
-  const hasFile = Boolean(note.fileUrl);
-  const AttachIcon = !hasFile ? null : isPdfFile(note.fileUrl, note.fileName) || isDocxFile(note.fileUrl, note.fileName) ? FileText : ImageIcon;
+  const hasFile = note.attachments.length > 0;
+  const AttachIcon =
+    !hasFile ? null : note.attachments.length === 1 && attachmentKind(note.attachments[0].url, note.attachments[0].name) === "image" ? ImageIcon : FileText;
 
   return (
     <Card
@@ -479,7 +478,7 @@ function NoteCard({ note, onOpen }: { note: StudentNote; onOpen: () => void }) {
 
 /** Read-only notes staff have sent this student — no download, no expiry,
  *  the student can come back to these on every visit. */
-function NotesGrid({ notes, onReset }: { notes: StudentNote[]; onReset: () => void }) {
+function NotesGrid({ notes, studentName, onReset }: { notes: StudentNote[]; studentName: string; onReset: () => void }) {
   const [open, setOpen] = useState<StudentNote | null>(null);
   const sorted = [...notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -502,12 +501,14 @@ function NotesGrid({ notes, onReset }: { notes: StudentNote[]; onReset: () => vo
 
   return (
     <div>
-      <div className="grid gap-5 sm:grid-cols-2">
-        {sorted.map((n) => (
-          <NoteCard key={n.id} note={n} onOpen={() => setOpen(n)} />
-        ))}
-      </div>
-      <NoteViewer note={open} onOpenChange={(o) => !o && setOpen(null)} />
+      <ProtectedContent watermark={studentName}>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {sorted.map((n) => (
+            <NoteCard key={n.id} note={n} onOpen={() => setOpen(n)} />
+          ))}
+        </div>
+        <NoteViewer note={open} onOpenChange={(o) => !o && setOpen(null)} />
+      </ProtectedContent>
       <Button variant="ghost" size="sm" className="mt-8" onClick={onReset}>
         Check a different student
       </Button>
@@ -515,16 +516,14 @@ function NotesGrid({ notes, onReset }: { notes: StudentNote[]; onReset: () => vo
   );
 }
 
-/** Shows a note read-only — its typed text, and/or an attached PDF, Word
- *  doc, or photo. A PDF/Word attachment renders inline via the same
- *  canvas/HTML converters used for test papers (PdfPaper/WordPaper), so
- *  there's never an actual file the student could save — and copy/
- *  right-click are disabled on the typed text. It never expires, so the
- *  student can reopen it from this same list any time they log back in. */
+/** Shows a note read-only — its typed text and/or any number of attached
+ *  PDFs, Word docs, Excel sheets or photos. Everything renders inline
+ *  (canvas / HTML / tables), so there's never an actual file the student
+ *  could save; copy, right-click, drag, print and screenshot shortcuts are
+ *  blocked (see ProtectedContent). It never expires, so the student can
+ *  reopen it from this same list any time they log back in. */
 function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenChange: (open: boolean) => void }) {
-  const hasFile = Boolean(note?.fileUrl);
-  const filePdf = isPdfFile(note?.fileUrl, note?.fileName);
-  const fileDocx = isDocxFile(note?.fileUrl, note?.fileName);
+  const hasFile = (note?.attachments.length ?? 0) > 0;
 
   return (
     <Dialog open={!!note} onOpenChange={onOpenChange}>
@@ -540,22 +539,7 @@ function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenCh
               </DialogDescription>
             </DialogHeader>
 
-            {hasFile && (
-              <div className="bg-secondary/30 min-h-0 flex-1 overflow-y-auto rounded-lg border">
-                {filePdf ? (
-                  <PdfPaper src={note.fileUrl!} className="size-full" />
-                ) : fileDocx ? (
-                  <WordPaper src={note.fileUrl!} className="size-full" />
-                ) : (
-                  <img
-                    src={note.fileUrl}
-                    alt={note.title || "Note attachment"}
-                    className="size-full object-contain"
-                    onContextMenu={(e) => e.preventDefault()}
-                  />
-                )}
-              </div>
-            )}
+            {hasFile && <NoteAttachments attachments={note.attachments} title={note.title} className="flex-1" />}
 
             {note.body && (
               <div
@@ -669,7 +653,7 @@ function StudentHome({
           <NotebookText className="size-3.5" /> In-Class Notes
         </h3>
         <div className="mt-4">
-          <NotesGrid notes={notes} onReset={onReset} />
+          <NotesGrid notes={notes} studentName={greetingName} onReset={onReset} />
         </div>
       </div>
     );
