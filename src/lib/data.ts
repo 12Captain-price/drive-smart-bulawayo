@@ -402,7 +402,7 @@ export const defaultSettings: SiteSettings = {
     "Please let me know what other times are available. Thank you!",
   ].join("\n"),
   waNoteTemplate: [
-    "Hi {student}, we've sent you new notes: \"{title}\".",
+    'Hi {student}, we\'ve sent you new notes: "{title}".',
     "You can read them anytime on My Lessons — no need to download anything, just look them up",
     "again with your name and phone number like you do for your lesson schedule.",
     "",
@@ -1997,32 +1997,6 @@ export function hasLegacyLocalInstructors(): boolean {
   }
 }
 
-/** Set (or change) the PIN an instructor uses to check their own schedule. */
-export async function setInstructorPin(instructorId: string, pin: string): Promise<void> {
-  const { error } = await (supabase as any).rpc("set_instructor_pin", {
-    p_instructor_id: instructorId,
-    p_pin: pin.trim(),
-  });
-  if (error) throw error;
-}
-
-/** True/false only — never returns the PIN itself. Safe to call from the
- *  admin UI even though it runs on the shared anon key. */
-export async function instructorHasPin(instructorId: string): Promise<boolean> {
-  const { data, error } = await (supabase as any).rpc("instructor_has_pin", {
-    p_instructor_id: instructorId,
-  });
-  if (error) throw error;
-  return Boolean(data);
-}
-
-export async function clearInstructorPin(instructorId: string): Promise<void> {
-  const { error } = await (supabase as any).rpc("clear_instructor_pin", {
-    p_instructor_id: instructorId,
-  });
-  if (error) throw error;
-}
-
 /* ----------------------- public lesson self-lookup ----------------------- */
 
 export interface MyLesson {
@@ -2054,14 +2028,16 @@ export async function fetchMyLessonsAsStudent(
   return (data as { studentName: string; lessons: MyLesson[] } | null) ?? null;
 }
 
-/** Returns null when the name/PIN don't match any instructor. */
+/** Returns null when the name/phone don't match any instructor. Same
+ *  name + last-4-of-phone check as the student lookup (the number is the one
+ *  saved on the instructor's profile). */
 export async function fetchMyLessonsAsInstructor(
   name: string,
-  pin: string,
+  phoneLast4: string,
 ): Promise<{ instructorName: string; lessons: MyLesson[] } | null> {
-  const { data, error } = await (supabase as any).rpc("get_my_lessons_instructor", {
+  const { data, error } = await (supabase as any).rpc("get_my_lessons_instructor_phone", {
     p_name: name,
-    p_pin: pin,
+    p_phone_last4: phoneLast4,
   });
   if (error) throw error;
   return (data as { instructorName: string; lessons: MyLesson[] } | null) ?? null;
@@ -2911,7 +2887,10 @@ export function findLessonConflict(
  */
 export interface StudentNote {
   id: string;
+  /** Set for a note sent to a student; "" for an instructor-only note. */
   studentId: string;
+  /** Set for a note sent to an instructor only — students never see these. */
+  instructorId?: string;
   lessonType: LessonType | "general";
   title: string;
   body: string;
@@ -2926,7 +2905,8 @@ export interface StudentNote {
 function studentNoteFromRow(row: any): StudentNote {
   return {
     id: row.id,
-    studentId: row.student_id,
+    studentId: row.student_id ?? "",
+    instructorId: row.instructor_id ?? undefined,
     lessonType: row.lesson_type ?? "general",
     title: row.title ?? "",
     body: row.body ?? "",
@@ -2940,7 +2920,8 @@ function studentNoteFromRow(row: any): StudentNote {
 
 function studentNoteToRow(item: Partial<StudentNote>): Record<string, unknown> {
   const row: Record<string, unknown> = {};
-  if (has(item, "studentId")) row.student_id = item.studentId;
+  if (has(item, "studentId")) row.student_id = item.studentId || null;
+  if (has(item, "instructorId")) row.instructor_id = item.instructorId || null;
   if (has(item, "lessonType")) row.lesson_type = item.lessonType;
   if (has(item, "title")) row.title = item.title;
   if (has(item, "body")) row.body = item.body;
@@ -2990,18 +2971,46 @@ export async function fetchMyNotesAsStudent(
   if (!data) return null;
   return {
     studentName: data.studentName,
-    notes: (data.notes as any[]).map((n) => ({
-      id: n.id,
-      studentId: n.studentId ?? "",
-      lessonType: n.lessonType ?? "general",
-      title: n.title ?? "",
-      body: n.body ?? "",
-      fileUrl: n.fileUrl ?? undefined,
-      fileName: n.fileName ?? undefined,
-      attachments: decodeAttachments(n.fileUrl, n.fileName),
-      createdAt: n.createdAt,
-      updatedAt: n.updatedAt ?? n.createdAt,
-    })),
+    notes: (data.notes as any[]).map(noteFromRpc),
+  };
+}
+
+/**
+ * Instructor side — notes sent to one instructor only. Same shape of lookup
+ * as the student one (name + last 4 of the phone saved on their profile) and
+ * the same rule: it goes through a security-definer RPC
+ * (get_my_notes_instructor), never a direct table read, so an instructor can
+ * only ever see their own notes — never a student's, never another
+ * instructor's. Returns null when the name/phone don't match.
+ */
+export async function fetchMyNotesAsInstructor(
+  name: string,
+  phoneLast4: string,
+): Promise<{ instructorName: string; notes: StudentNote[] } | null> {
+  const { data, error } = await (supabase as any).rpc("get_my_notes_instructor", {
+    p_name: name,
+    p_phone_last4: phoneLast4,
+  });
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    instructorName: data.instructorName,
+    notes: (data.notes as any[]).map(noteFromRpc),
+  };
+}
+
+function noteFromRpc(n: any): StudentNote {
+  return {
+    id: n.id,
+    studentId: n.studentId ?? "",
+    lessonType: n.lessonType ?? "general",
+    title: n.title ?? "",
+    body: n.body ?? "",
+    fileUrl: n.fileUrl ?? undefined,
+    fileName: n.fileName ?? undefined,
+    attachments: decodeAttachments(n.fileUrl, n.fileName),
+    createdAt: n.createdAt,
+    updatedAt: n.updatedAt ?? n.createdAt,
   };
 }
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   Eye,
   FileText,
+  GraduationCap,
   Image as ImageIcon,
   Loader2,
   Lock,
@@ -13,6 +14,7 @@ import {
   Search,
   Sheet as SheetIcon,
   Trash2,
+  UserCheck,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -54,6 +56,7 @@ import {
   errorMessage,
   renderTemplate,
   uploadTestFileToStorage,
+  useInstructors,
   useSettings,
   useStudents,
   useStudentNotes,
@@ -117,6 +120,7 @@ function AttachmentBadge({ note }: { note: StudentNote }) {
  */
 export function NotesPanel() {
   const { items: students } = useStudents();
+  const { items: instructors } = useInstructors();
   const { items: notes, add, addMany, update, remove } = useStudentNotes();
   const { settings } = useSettings();
 
@@ -128,32 +132,47 @@ export function NotesPanel() {
 
   const studentName = (id: string) => students.find((s) => s.id === id)?.name ?? "Unknown student";
 
-  /** Builds the "Send to student" WhatsApp link for a note — same
-   *  pattern as the Schedule tab's "Send to student" button: an editable
-   *  template rendered with this note's details, opened as a wa.me link
-   *  the moment staff click it (no extra confirm step). */
+  /** Who a note was sent to — a student, or an instructor when it's an
+   *  instructor-only note. */
+  const isInstructorNote = (n: StudentNote) => Boolean(n.instructorId);
+  const recipientName = (n: StudentNote) =>
+    n.instructorId
+      ? (instructors.find((i) => i.id === n.instructorId)?.name ?? "Unknown instructor")
+      : studentName(n.studentId);
+
+  /** Builds the "Notify on WhatsApp" link for a note — same pattern as the
+   *  Schedule tab's send buttons: an editable template rendered with this
+   *  note's details, opened as a wa.me link the moment staff click it (no
+   *  extra confirm step). Goes to the student's or the instructor's phone
+   *  depending on who the note is for. */
   function notifyHref(n: StudentNote) {
-    const student = students.find((s) => s.id === n.studentId);
-    if (!student?.phone) return undefined;
+    const recipient = n.instructorId
+      ? instructors.find((i) => i.id === n.instructorId)
+      : students.find((s) => s.id === n.studentId);
+    if (!recipient?.phone) return undefined;
     const message = renderTemplate(settings.waNoteTemplate, {
-      student: student.name,
+      student: recipient.name,
       title: n.title || "a note",
       link: `${origin()}/my-lessons`,
     });
-    return waLink(student.phone, message);
+    return waLink(recipient.phone, message);
   }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const sorted = [...notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     if (!q) return sorted;
+    const nameOf = (n: StudentNote) =>
+      n.instructorId
+        ? (instructors.find((i) => i.id === n.instructorId)?.name ?? "")
+        : (students.find((s) => s.id === n.studentId)?.name ?? "");
     return sorted.filter(
       (n) =>
         n.title.toLowerCase().includes(q) ||
         n.body.toLowerCase().includes(q) ||
-        studentName(n.studentId).toLowerCase().includes(q),
+        nameOf(n).toLowerCase().includes(q),
     );
-  }, [notes, query, students]);
+  }, [notes, query, students, instructors]);
 
   const openNew = () => {
     setEditing(null);
@@ -170,10 +189,10 @@ export function NotesPanel() {
         <div>
           <h1 className="text-xl font-semibold">Notes</h1>
           <p className="text-muted-foreground mt-1 max-w-prose text-sm">
-            Send one or more students notes to revise — PDFs, Word docs, Excel sheets, photos, or
-            just typed text — after a provisional lesson or anytime. They see them read-only on the
-            My Lessons page: no download, and no expiry, so they can check back whenever they need
-            to.
+            Send students notes to revise — PDFs, Word docs, Excel sheets, photos, or just typed
+            text — after a provisional lesson or anytime. They see them read-only on the My Lessons
+            page: no download, and no expiry. You can also send a note to instructors only; it
+            appears just for them once they sign in on My Lessons.
           </p>
         </div>
         <Button onClick={openNew}>
@@ -213,10 +232,18 @@ export function NotesPanel() {
                       <Badge variant="secondary" className="font-normal">
                         {LESSON_TYPE_LABEL[n.lessonType]}
                       </Badge>
+                      {isInstructorNote(n) && (
+                        <Badge
+                          variant="outline"
+                          className="border-accent/40 bg-accent/15 text-accent-foreground gap-1 font-normal"
+                        >
+                          <UserCheck className="size-3" /> Instructor only
+                        </Badge>
+                      )}
                       <AttachmentBadge note={n} />
                     </div>
                     <p className="text-muted-foreground mt-1 text-sm">
-                      {studentName(n.studentId)} · {fmtDate(n.createdAt)}
+                      {recipientName(n)} · {fmtDate(n.createdAt)}
                     </p>
                     {n.body && (
                       <p className="text-muted-foreground mt-2 line-clamp-2 text-sm whitespace-pre-line">
@@ -240,8 +267,8 @@ export function NotesPanel() {
                       variant="outline"
                       size="icon"
                       onClick={() => setPreviewNote(n)}
-                      aria-label="Preview note as the student sees it"
-                      title="Preview as the student sees it"
+                      aria-label="Preview note as the recipient sees it"
+                      title="Preview as the recipient sees it"
                     >
                       <Eye className="size-4" />
                     </Button>
@@ -274,24 +301,32 @@ export function NotesPanel() {
         onOpenChange={setComposerOpen}
         note={editing}
         students={students}
-        onSave={({ studentIds, ...payload }) => {
+        instructors={instructors.map((i) => ({ id: i.id, name: i.name, phone: i.phone ?? "" }))}
+        onSave={({ audience, recipientIds, ...payload }) => {
+          const forInstructors = audience === "instructors";
           if (editing) {
-            update(editing.id, { ...payload, studentId: studentIds[0] });
+            update(editing.id, {
+              ...payload,
+              studentId: forInstructors ? "" : recipientIds[0],
+              instructorId: forInstructors ? recipientIds[0] : undefined,
+            });
             toast.success("Note updated");
           } else {
             const now = new Date().toISOString();
-            const list = studentIds.map((studentId) => ({
+            const list = recipientIds.map((id) => ({
               ...payload,
-              studentId,
+              studentId: forInstructors ? "" : id,
+              instructorId: forInstructors ? id : undefined,
               createdAt: now,
               updatedAt: now,
             }));
             if (list.length === 1) add(list[0]);
             else addMany(list);
+            const who = forInstructors ? "instructor" : "student";
             toast.success(
               list.length === 1
-                ? "Note sent — the student will see it on My Lessons"
-                : `Note sent to ${list.length} students — they'll see it on My Lessons`,
+                ? `Note sent — the ${who} will see it on My Lessons`
+                : `Note sent to ${list.length} ${who}s — they'll see it on My Lessons`,
             );
           }
           setComposerOpen(false);
@@ -312,7 +347,7 @@ export function NotesPanel() {
               <DialogHeader>
                 <DialogTitle>{previewNote.title || "(untitled note)"}</DialogTitle>
                 <DialogDescription>
-                  Preview — this is what {studentName(previewNote.studentId)} sees.
+                  Preview — this is what {recipientName(previewNote)} sees.
                 </DialogDescription>
               </DialogHeader>
               <NoteAttachments
@@ -338,9 +373,10 @@ export function NotesPanel() {
             <AlertDialogDescription>
               {deleteTarget && (
                 <>
-                  "{deleteTarget.title || "(untitled note)"}" for{" "}
-                  {studentName(deleteTarget.studentId)} will no longer be visible to the student.
-                  This can't be undone.
+                  "{deleteTarget.title || "(untitled note)"}" for {recipientName(deleteTarget)} will
+                  no longer be visible to{" "}
+                  {isInstructorNote(deleteTarget) ? "the instructor" : "the student"}. This can't be
+                  undone.
                 </>
               )}
             </AlertDialogDescription>
@@ -365,9 +401,13 @@ export function NotesPanel() {
   );
 }
 
+type NoteAudience = "students" | "instructors";
+
 type NotePayload = {
-  /** One id when editing; one or more when sending a new note. */
-  studentIds: string[];
+  audience: NoteAudience;
+  /** One id when editing; one or more when sending a new note. Student ids
+   *  or instructor ids depending on `audience`. */
+  recipientIds: string[];
   lessonType: LessonType | "general";
   title: string;
   body: string;
@@ -381,15 +421,21 @@ function NoteComposer({
   onOpenChange,
   note,
   students,
+  instructors,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   note: StudentNote | null;
   students: { id: string; name: string; phone: string }[];
+  instructors: { id: string; name: string; phone: string }[];
   onSave: (payload: NotePayload) => void;
 }) {
-  const [studentIds, setStudentIds] = useState<string[]>(note ? [note.studentId] : []);
+  const noteAudience = (n: StudentNote | null): NoteAudience =>
+    n?.instructorId ? "instructors" : "students";
+  const noteRecipient = (n: StudentNote | null) => (n ? [n.instructorId || n.studentId] : []);
+  const [audience, setAudience] = useState<NoteAudience>(noteAudience(note));
+  const [recipientIds, setRecipientIds] = useState<string[]>(noteRecipient(note));
   const [studentQuery, setStudentQuery] = useState("");
   const [lessonType, setLessonType] = useState<LessonType | "general">(
     note?.lessonType ?? "provisional",
@@ -407,7 +453,8 @@ function NoteComposer({
   const wantedKey = note?.id ?? "new";
   if (open && seededFor !== wantedKey) {
     setSeededFor(wantedKey);
-    setStudentIds(note ? [note.studentId] : []);
+    setAudience(noteAudience(note));
+    setRecipientIds(noteRecipient(note));
     setStudentQuery("");
     setLessonType(note?.lessonType ?? "provisional");
     setTitle(note?.title ?? "");
@@ -418,23 +465,34 @@ function NoteComposer({
 
   const editing = Boolean(note);
 
+  const forInstructors = audience === "instructors";
+  const people = forInstructors ? instructors : students;
+  const noun = forInstructors ? "instructor" : "student";
+
   const visibleStudents = useMemo(() => {
     const q = studentQuery.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(
+    if (!q) return people;
+    return people.filter(
       (s) => s.name.toLowerCase().includes(q) || s.phone.toLowerCase().includes(q),
     );
-  }, [students, studentQuery]);
+  }, [people, studentQuery]);
+
+  const switchAudience = (next: NoteAudience) => {
+    if (next === audience) return;
+    setAudience(next);
+    setRecipientIds([]);
+    setStudentQuery("");
+  };
 
   const toggleStudent = (id: string, on: boolean) =>
-    setStudentIds((cur) =>
+    setRecipientIds((cur) =>
       on ? (cur.includes(id) ? cur : [...cur, id]) : cur.filter((x) => x !== id),
     );
 
   const allVisibleSelected =
-    visibleStudents.length > 0 && visibleStudents.every((s) => studentIds.includes(s.id));
+    visibleStudents.length > 0 && visibleStudents.every((s) => recipientIds.includes(s.id));
   const toggleAllVisible = () =>
-    setStudentIds((cur) =>
+    setRecipientIds((cur) =>
       allVisibleSelected
         ? cur.filter((id) => !visibleStudents.some((s) => s.id === id))
         : [...cur, ...visibleStudents.map((s) => s.id).filter((id) => !cur.includes(id))],
@@ -485,31 +543,66 @@ function NoteComposer({
 
   const hasFiles = attachments.length > 0;
   const canSave = Boolean(
-    studentIds.length > 0 && title.trim() && (body.trim() || hasFiles) && !uploading,
+    recipientIds.length > 0 && title.trim() && (body.trim() || hasFiles) && !uploading,
   );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{note ? "Edit note" : "New note for students"}</DialogTitle>
+          <DialogTitle>
+            {note
+              ? "Edit note"
+              : forInstructors
+                ? "New note for instructors"
+                : "New note for students"}
+          </DialogTitle>
           <DialogDescription>
-            They'll see this read-only on their My Lessons page — no download, and it stays there
-            for them to revisit any time.
+            {forInstructors
+              ? "Only the instructor you pick can read this — they sign in on My Lessons with their name and the last 4 digits of their phone. Read-only, no download."
+              : "They'll see this read-only on their My Lessons page — no download, and it stays there for them to revisit any time."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {!editing && (
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Send note to">
+              {(
+                [
+                  { value: "students", label: "Students", icon: GraduationCap },
+                  { value: "instructors", label: "Instructors only", icon: UserCheck },
+                ] as const
+              ).map((o) => {
+                const active = audience === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => switchAudience(o.value)}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+                      active
+                        ? "border-primary bg-primary/5 text-primary ring-primary/20 ring-2"
+                        : "border-input text-muted-foreground hover:bg-secondary/40",
+                    )}
+                  >
+                    <o.icon className="size-4" /> {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {editing ? (
             <div className="grid gap-2">
-              <Label>Student</Label>
+              <Label>{forInstructors ? "Instructor" : "Student"}</Label>
               <select
                 className="border-input bg-background h-9 rounded-md border px-3 text-sm"
-                value={studentIds[0] ?? ""}
-                onChange={(e) => setStudentIds(e.target.value ? [e.target.value] : [])}
+                value={recipientIds[0] ?? ""}
+                onChange={(e) => setRecipientIds(e.target.value ? [e.target.value] : [])}
               >
-                <option value="">Select a student…</option>
-                {students.map((s) => (
+                <option value="">Select {forInstructors ? "an instructor" : "a student"}…</option>
+                {people.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}, {s.phone}
                   </option>
@@ -519,9 +612,9 @@ function NoteComposer({
           ) : (
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-2">
-                <Label>Students</Label>
+                <Label>{forInstructors ? "Instructors" : "Students"}</Label>
                 <span className="text-muted-foreground text-xs">
-                  {studentIds.length === 0 ? "None selected" : `${studentIds.length} selected`}
+                  {recipientIds.length === 0 ? "None selected" : `${recipientIds.length} selected`}
                 </span>
               </div>
               <div className="relative">
@@ -531,14 +624,12 @@ function NoteComposer({
                   onChange={(e) => setStudentQuery(e.target.value)}
                   placeholder="Search by name or phone…"
                   className="h-9 pl-9"
-                  aria-label="Search students"
+                  aria-label={`Search ${noun}s`}
                 />
               </div>
               <div className="border-input max-h-44 divide-y overflow-y-auto rounded-md border">
                 {visibleStudents.length === 0 ? (
-                  <p className="text-muted-foreground p-3 text-center text-sm">
-                    No students match.
-                  </p>
+                  <p className="text-muted-foreground p-3 text-center text-sm">No {noun}s match.</p>
                 ) : (
                   <>
                     <label className="bg-secondary/40 flex cursor-pointer items-center gap-3 px-3 py-2 text-sm font-medium">
@@ -554,7 +645,7 @@ function NoteComposer({
                         className="hover:bg-secondary/40 flex cursor-pointer items-center gap-3 px-3 py-2 text-sm"
                       >
                         <Checkbox
-                          checked={studentIds.includes(s.id)}
+                          checked={recipientIds.includes(s.id)}
                           onCheckedChange={(v) => toggleStudent(s.id, v === true)}
                         />
                         <span className="min-w-0 flex-1 truncate">{s.name}</span>
@@ -564,9 +655,9 @@ function NoteComposer({
                   </>
                 )}
               </div>
-              {studentIds.length > 1 && (
+              {recipientIds.length > 1 && (
                 <p className="text-muted-foreground text-xs">
-                  Each student gets their own copy of this note.
+                  Each {noun} gets their own copy of this note.
                 </p>
               )}
             </div>
@@ -672,14 +763,19 @@ function NoteComposer({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={hasFiles ? 4 : 8}
-              placeholder="Write what you'd like the student to revise…"
+              placeholder={
+                forInstructors
+                  ? "Write what you'd like the instructor to know…"
+                  : "Write what you'd like the student to revise…"
+              }
             />
           </div>
 
           <p className="text-muted-foreground flex items-start gap-2 text-xs">
             <Lock className="mt-0.5 size-3.5 shrink-0" />
-            Shown read-only, no download button, never expires — the student just looks it up again
-            from My Lessons whenever they want.
+            {forInstructors
+              ? "Shown read-only, no download button — visible only to the instructor(s) you pick, never to students."
+              : "Shown read-only, no download button, never expires — the student just looks it up again from My Lessons whenever they want."}
           </p>
         </div>
 
@@ -691,7 +787,8 @@ function NoteComposer({
             disabled={!canSave}
             onClick={() =>
               onSave({
-                studentIds,
+                audience,
+                recipientIds,
                 lessonType,
                 title: title.trim(),
                 body: body.trim(),
@@ -703,8 +800,8 @@ function NoteComposer({
             <FileText className="size-4" />
             {note
               ? "Save changes"
-              : studentIds.length > 1
-                ? `Send to ${studentIds.length} students`
+              : recipientIds.length > 1
+                ? `Send to ${recipientIds.length} ${noun}s`
                 : "Send note"}
           </Button>
         </DialogFooter>

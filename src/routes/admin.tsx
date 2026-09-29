@@ -110,11 +110,8 @@ import {
   STUDENT_STATUSES,
   bookedSlotKeys,
   hasLegacyLocalInstructors,
-  instructorHasPin,
   migrateLocalInstructorsToSupabase,
   renderTemplate,
-  setInstructorPin,
-  clearInstructorPin,
   slotKey,
   slugify,
   waLink,
@@ -241,7 +238,10 @@ const NAV_ICONS: Record<SectionName, typeof Inbox> = {
 const NAV_GROUPS: { label: string; items: SectionName[] }[] = [
   // "Site Traffic" is filtered out of this group for non-managers at render time.
   { label: "Overview", items: ["Overview", "Site Traffic"] },
-  { label: "Operations", items: ["Enquiries", "Students", "Schedule", "Payments", "Tests", "Notes"] },
+  {
+    label: "Operations",
+    items: ["Enquiries", "Students", "Schedule", "Payments", "Tests", "Notes"],
+  },
   {
     label: "Content & site",
     items: [
@@ -1452,11 +1452,7 @@ function InstructorCard({
               placeholder="e.g. 077XXXXXXX, needed for the Share button below"
             />
           </div>
-          <InstructorPinField
-            instructorId={ins.id}
-            instructorName={ins.name}
-            instructorPhone={ins.phone}
-          />
+          <InstructorLoginInfo instructorName={ins.name} instructorPhone={ins.phone} />
           <div className="flex gap-2 sm:col-span-2">
             <Button size="sm" onClick={() => toast.success("Instructor saved")}>
               Save
@@ -1472,136 +1468,51 @@ function InstructorCard({
   );
 }
 
-/** PIN this instructor uses at /my-lessons to check their own schedule.
- *  Saved on blur — the PIN itself lives in a separate, non-public table
- *  (see supabase/005_lesson_lookup.sql), never in the instructors row.
- *  The admin panel can only ever see whether a PIN is set, not what it
- *  is — instructor_has_pin() returns a boolean, never the PIN itself.
- *  That means the "share via WhatsApp" button below only works for a few
- *  seconds right after saving/changing a PIN, while it's still sitting in
- *  this component's memory — refresh the page and it's gone, by design. */
-function InstructorPinField({
-  instructorId,
+/** How this instructor signs in at /my-lessons: their full name plus the last
+ *  4 digits of the WhatsApp number saved above — the same check students use.
+ *  There is no PIN to set or remember; changing the number changes the login. */
+function InstructorLoginInfo({
   instructorName,
   instructorPhone,
 }: {
-  instructorId: string;
   instructorName: string;
   instructorPhone?: string;
 }) {
-  const [pin, setPin] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [hasPin, setHasPin] = useState<boolean | null>(null);
-  const [justSetPin, setJustSetPin] = useState<string | null>(null);
-
-  useEffect(() => {
-    instructorHasPin(instructorId)
-      .then(setHasPin)
-      .catch(() => setHasPin(null));
-  }, [instructorId]);
-
-  async function save() {
-    const trimmed = pin.trim();
-    if (!trimmed) return;
-    setSaving(true);
-    try {
-      await setInstructorPin(instructorId, trimmed);
-      setJustSetPin(trimmed);
-      setPin("");
-      setHasPin(true);
-      toast.success("PIN saved");
-    } catch (err) {
-      toast.error(errorMessage(err, "Could not save PIN."));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function clear() {
-    setSaving(true);
-    try {
-      await clearInstructorPin(instructorId);
-      setHasPin(false);
-      setJustSetPin(null);
-      toast.success("PIN cleared");
-    } catch (err) {
-      toast.error(errorMessage(err, "Could not clear PIN."));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const shareMessage = justSetPin
-    ? `Hi ${instructorName}, here's how to check your Auto Driving School schedule:\n${origin()}/my-lessons\nUse your name and this PIN: ${justSetPin}`
-    : "";
+  const digits = (instructorPhone ?? "").replace(/\D/g, "");
+  const last4 = digits.length >= 4 ? digits.slice(-4) : "";
+  const message = `Hi ${instructorName}, here's how to check your Auto Driving School schedule and notes:\n${origin()}/my-lessons\nChoose "I'm an instructor", then enter your full name and the last 4 digits of this phone number.`;
 
   return (
     <div className="grid gap-2 sm:col-span-2">
       <div className="flex items-center gap-2">
-        <Label>Schedule PIN</Label>
-        {hasPin === true && (
+        <Label>My Lessons login</Label>
+        {last4 ? (
           <Badge variant="secondary" className="text-xs">
-            PIN set
+            Ready · ends in {last4}
           </Badge>
-        )}
-        {hasPin === false && (
+        ) : (
           <Badge variant="outline" className="text-xs">
-            No PIN yet
+            Add a WhatsApp number
           </Badge>
         )}
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Input
-          placeholder={hasPin ? "Enter a new PIN to change it" : "e.g. 4821"}
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          onBlur={save}
-          className="max-w-32"
-        />
-        <Button size="sm" variant="outline" onClick={save} disabled={saving || !pin.trim()}>
-          {saving ? "Saving…" : hasPin ? "Change PIN" : "Save PIN"}
-        </Button>
-        {hasPin && (
-          <Button size="sm" variant="ghost" onClick={clear} disabled={saving}>
-            Clear
-          </Button>
-        )}
-      </div>
-      {justSetPin &&
+      <p className="text-muted-foreground text-xs">
+        {last4
+          ? `${instructorName} signs in with their full name and the last 4 digits of the WhatsApp number above (${last4}). No PIN needed.`
+          : "Instructors sign in with their full name and the last 4 digits of the WhatsApp number saved here, so add a number above first."}
+      </p>
+      {last4 &&
         (instructorPhone ? (
           <Button
             size="sm"
             className="bg-success text-success-foreground hover:bg-success/90 w-fit"
             asChild
           >
-            <a href={waLink(instructorPhone, shareMessage)} target="_blank" rel="noreferrer">
-              <MessageCircle className="size-4" /> Send this PIN on WhatsApp
+            <a href={waLink(instructorPhone, message)} target="_blank" rel="noreferrer">
+              <MessageCircle className="size-4" /> Send login instructions on WhatsApp
             </a>
           </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-fit"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(shareMessage);
-                toast.success("Message copied, paste it wherever you're messaging them");
-              } catch {
-                toast.error(
-                  "Could not copy, add a WhatsApp number above for a one-tap send instead",
-                );
-              }
-            }}
-          >
-            <MessageCircle className="size-4" /> Copy message to send (add a WhatsApp number above
-            for one-tap send)
-          </Button>
-        ))}
-      <p className="text-muted-foreground text-xs">
-        Share this with the instructor along with the /my-lessons link so they can check their own
-        schedule. For security, saved PINs can't be viewed again here, only changed or cleared.
-      </p>
+        ) : null)}
     </div>
   );
 }
@@ -2588,8 +2499,8 @@ function SettingsPanel() {
             onChange={(e) => save({ waRescheduleTemplate: e.target.value })}
           />
           <p className="text-muted-foreground text-xs">
-            Tokens: {RESCHEDULE_TEMPLATE_TOKENS.join(" ")}, sent to the office WhatsApp number
-            above when a student taps "Request reschedule" on their /my-lessons page.
+            Tokens: {RESCHEDULE_TEMPLATE_TOKENS.join(" ")}, sent to the office WhatsApp number above
+            when a student taps "Request reschedule" on their /my-lessons page.
           </p>
         </div>
 
@@ -2602,8 +2513,8 @@ function SettingsPanel() {
             onChange={(e) => save({ waNoteTemplate: e.target.value })}
           />
           <p className="text-muted-foreground text-xs">
-            Tokens: {NOTE_TEMPLATE_TOKENS.join(" ")}, used by "Notify on WhatsApp" on the Notes
-            tab, sent to the student's phone.
+            Tokens: {NOTE_TEMPLATE_TOKENS.join(" ")}, used by "Notify on WhatsApp" on the Notes tab,
+            sent to the student's phone.
           </p>
         </div>
 

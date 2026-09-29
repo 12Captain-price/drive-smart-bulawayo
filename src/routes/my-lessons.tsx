@@ -20,7 +20,6 @@ import {
   MessageCircle,
   NotebookText,
   Sparkles,
-  User,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,6 +43,7 @@ import {
   errorMessage,
   fetchMyLessonsAsInstructor,
   fetchMyLessonsAsStudent,
+  fetchMyNotesAsInstructor,
   fetchMyNotesAsStudent,
   renderTemplate,
   useSettings,
@@ -67,7 +67,11 @@ export const Route = createFileRoute("/my-lessons")({
 });
 
 function fmtDay(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function fmtTime(iso: string) {
@@ -115,13 +119,37 @@ const STATUS_META: Record<
   MyLesson["status"],
   { label: string; icon: typeof CheckCircle2; className: string }
 > = {
-  scheduled: { label: "Scheduled", icon: Clock, className: "bg-primary/10 text-primary border-primary/20" },
-  completed: { label: "Completed", icon: CheckCircle2, className: "bg-success/10 text-success border-success/20" },
-  cancelled: { label: "Cancelled", icon: XCircle, className: "bg-destructive/10 text-destructive border-destructive/20" },
-  "no-show": { label: "No-show", icon: AlertCircle, className: "bg-warning/15 text-warning-foreground border-warning/30" },
+  scheduled: {
+    label: "Scheduled",
+    icon: Clock,
+    className: "bg-primary/10 text-primary border-primary/20",
+  },
+  completed: {
+    label: "Completed",
+    icon: CheckCircle2,
+    className: "bg-success/10 text-success border-success/20",
+  },
+  cancelled: {
+    label: "Cancelled",
+    icon: XCircle,
+    className: "bg-destructive/10 text-destructive border-destructive/20",
+  },
+  "no-show": {
+    label: "No-show",
+    icon: AlertCircle,
+    className: "bg-warning/15 text-warning-foreground border-warning/30",
+  },
 };
 
-function StatPill({ icon: Icon, value, label }: { icon: typeof CheckCircle2; value: number; label: string }) {
+function StatPill({
+  icon: Icon,
+  value,
+  label,
+}: {
+  icon: typeof CheckCircle2;
+  value: number;
+  label: string;
+}) {
   return (
     <div className="border-border/60 bg-card flex items-center gap-3 rounded-xl border px-4 py-3">
       <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
@@ -160,7 +188,9 @@ function LessonRow({
           <span className="text-muted-foreground text-[10px] font-bold tracking-wide uppercase">
             {fmtWeekdayShort(lesson.startsAt)}
           </span>
-          <span className="text-lg leading-none font-bold">{new Date(lesson.startsAt).getDate()}</span>
+          <span className="text-lg leading-none font-bold">
+            {new Date(lesson.startsAt).getDate()}
+          </span>
         </div>
 
         <div className="min-w-[10rem] flex-1">
@@ -174,7 +204,8 @@ function LessonRow({
           </div>
           <p className="text-muted-foreground mt-0.5 text-sm">
             {fmtTime(lesson.startsAt)} · {lesson.minutes} min ·{" "}
-            {lesson.lessonType === "provisional" ? "Provisional" : "Driving"} lesson with {otherParty}
+            {lesson.lessonType === "provisional" ? "Provisional" : "Driving"} lesson with{" "}
+            {otherParty}
           </p>
           {awaitingUpdate && (
             <p className="text-warning-foreground bg-warning/10 mt-2 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs">
@@ -209,7 +240,10 @@ function LessonRow({
             </Button>
           )}
           {lesson.status === "scheduled" && lesson.rescheduled && (
-            <Badge variant="outline" className="text-accent-foreground border-accent/40 bg-accent/15 gap-1">
+            <Badge
+              variant="outline"
+              className="text-accent-foreground border-accent/40 bg-accent/15 gap-1"
+            >
               <History className="size-3" /> Rescheduled
             </Badge>
           )}
@@ -269,12 +303,18 @@ function ScheduleView({
         <div className="bg-secondary text-muted-foreground mx-auto flex size-14 items-center justify-center rounded-full">
           <CalendarClock className="size-6" />
         </div>
-        <p className="mt-4 text-lg font-medium">Hi {greetingName.split(" ")[0]}, nothing on the schedule yet</p>
-        <p className="text-muted-foreground mt-1 text-sm">Once a lesson is booked, it'll show up right here.</p>
+        <p className="mt-4 text-lg font-medium">
+          Hi {greetingName.split(" ")[0]}, nothing on the schedule yet
+        </p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Once a lesson is booked, it'll show up right here.
+        </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-          <Button asChild size="sm">
-            <Link to="/contact">Book a lesson</Link>
-          </Button>
+          {role === "student" && (
+            <Button asChild size="sm">
+              <Link to="/contact">Book a lesson</Link>
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onReset}>
             {resetLabel}
           </Button>
@@ -297,7 +337,9 @@ function ScheduleView({
     .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
 
   const completedCount = lessons.filter((l) => l.status === "completed").length;
-  const missedCount = lessons.filter((l) => l.status === "cancelled" || l.status === "no-show").length;
+  const missedCount = lessons.filter(
+    (l) => l.status === "cancelled" || l.status === "no-show",
+  ).length;
   const next = upcoming[0];
 
   return (
@@ -328,8 +370,8 @@ function ScheduleView({
             <span className="text-muted-foreground font-normal">at {fmtTime(next.startsAt)}</span>
           </p>
           <p className="text-muted-foreground mt-1 text-sm">
-            {next.minutes} min · {next.lessonType === "provisional" ? "Provisional" : "Driving"} lesson with{" "}
-            {otherPartyLabel(next)}
+            {next.minutes} min · {next.lessonType === "provisional" ? "Provisional" : "Driving"}{" "}
+            lesson with {otherPartyLabel(next)}
           </p>
           <Button asChild size="sm" variant="outline" className="mt-4 gap-1.5">
             <a href={icsHref(next, otherPartyLabel(next))} download={`lesson-${next.id}.ics`}>
@@ -385,7 +427,9 @@ function ScheduleView({
             onClick={() => setShowHistory((v) => !v)}
             className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase transition-colors"
           >
-            <ChevronRight className={cn("size-3.5 transition-transform", showHistory && "rotate-90")} />
+            <ChevronRight
+              className={cn("size-3.5 transition-transform", showHistory && "rotate-90")}
+            />
             Past lessons ({history.length})
           </button>
           {showHistory && (
@@ -418,7 +462,11 @@ const NOTE_TYPE_ICON: Record<StudentNote["lessonType"], typeof GraduationCap> = 
 };
 
 function fmtNoteDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /** "PDF" / "Word doc" / "Spreadsheet" / "Photo" (or "3 files") — shown on a note card that has attachments. */
@@ -435,8 +483,12 @@ function noteAttachmentLabel(n: StudentNote) {
 function NoteCard({ note, onOpen }: { note: StudentNote; onOpen: () => void }) {
   const TypeIcon = NOTE_TYPE_ICON[note.lessonType];
   const hasFile = note.attachments.length > 0;
-  const AttachIcon =
-    !hasFile ? null : note.attachments.length === 1 && attachmentKind(note.attachments[0].url, note.attachments[0].name) === "image" ? ImageIcon : FileText;
+  const AttachIcon = !hasFile
+    ? null
+    : note.attachments.length === 1 &&
+        attachmentKind(note.attachments[0].url, note.attachments[0].name) === "image"
+      ? ImageIcon
+      : FileText;
 
   return (
     <Card
@@ -456,7 +508,9 @@ function NoteCard({ note, onOpen }: { note: StudentNote; onOpen: () => void }) {
       <CardContent className="flex flex-1 flex-col pt-14">
         <h3 className="text-lg font-semibold tracking-tight">{note.title || "(untitled note)"}</h3>
         <p className="text-muted-foreground mt-1 text-xs">{fmtNoteDate(note.createdAt)}</p>
-        {note.body && <p className="text-muted-foreground mt-3 line-clamp-3 text-sm">{note.body}</p>}
+        {note.body && (
+          <p className="text-muted-foreground mt-3 line-clamp-3 text-sm">{note.body}</p>
+        )}
         <ul className="mt-4 flex-1 space-y-2 text-sm">
           <li className="flex items-start gap-2">
             <span className="text-accent mt-0.5">✓</span> Read-only, no download
@@ -478,7 +532,20 @@ function NoteCard({ note, onOpen }: { note: StudentNote; onOpen: () => void }) {
 
 /** Read-only notes staff have sent this student — no download, no expiry,
  *  the student can come back to these on every visit. */
-function NotesGrid({ notes, studentName, onReset }: { notes: StudentNote[]; studentName: string; onReset: () => void }) {
+function NotesGrid({
+  notes,
+  studentName,
+  onReset,
+  resetLabel = "Check a different student",
+  emptyText = "Once your instructor sends you notes to revise, they'll show up here.",
+}: {
+  notes: StudentNote[];
+  /** Name shown as the on-screen watermark (the signed-in person). */
+  studentName: string;
+  onReset: () => void;
+  resetLabel?: string;
+  emptyText?: string;
+}) {
   const [open, setOpen] = useState<StudentNote | null>(null);
   const sorted = [...notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -489,11 +556,9 @@ function NotesGrid({ notes, studentName, onReset }: { notes: StudentNote[]; stud
           <NotebookText className="size-6" />
         </div>
         <p className="mt-4 text-lg font-medium">No notes yet</p>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Once your instructor sends you notes to revise, they'll show up here.
-        </p>
+        <p className="text-muted-foreground mt-1 text-sm">{emptyText}</p>
         <Button variant="ghost" size="sm" className="mt-5" onClick={onReset}>
-          Check a different student
+          {resetLabel}
         </Button>
       </div>
     );
@@ -510,7 +575,7 @@ function NotesGrid({ notes, studentName, onReset }: { notes: StudentNote[]; stud
         <NoteViewer note={open} onOpenChange={(o) => !o && setOpen(null)} />
       </ProtectedContent>
       <Button variant="ghost" size="sm" className="mt-8" onClick={onReset}>
-        Check a different student
+        {resetLabel}
       </Button>
     </div>
   );
@@ -522,13 +587,22 @@ function NotesGrid({ notes, studentName, onReset }: { notes: StudentNote[]; stud
  *  could save; copy, right-click, drag, print and screenshot shortcuts are
  *  blocked (see ProtectedContent). It never expires, so the student can
  *  reopen it from this same list any time they log back in. */
-function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenChange: (open: boolean) => void }) {
+function NoteViewer({
+  note,
+  onOpenChange,
+}: {
+  note: StudentNote | null;
+  onOpenChange: (open: boolean) => void;
+}) {
   const hasFile = (note?.attachments.length ?? 0) > 0;
 
   return (
     <Dialog open={!!note} onOpenChange={onOpenChange}>
       <DialogContent
-        className={cn("flex flex-col gap-3", hasFile ? "h-[85vh] w-[95vw] max-w-2xl" : "sm:max-w-lg")}
+        className={cn(
+          "flex flex-col gap-3",
+          hasFile ? "h-[85vh] w-[95vw] max-w-2xl" : "sm:max-w-lg",
+        )}
       >
         {note && (
           <>
@@ -539,7 +613,13 @@ function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenCh
               </DialogDescription>
             </DialogHeader>
 
-            {hasFile && <NoteAttachments attachments={note.attachments} title={note.title} className="flex-1" />}
+            {hasFile && (
+              <NoteAttachments
+                attachments={note.attachments}
+                title={note.title}
+                className="flex-1"
+              />
+            )}
 
             {note.body && (
               <div
@@ -555,8 +635,8 @@ function NoteViewer({ note, onOpenChange }: { note: StudentNote | null; onOpenCh
             )}
 
             <p className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
-              <Lock className="size-3.5 shrink-0" /> View-only — this note stays here for you to check
-              back on any time, it doesn't expire.
+              <Lock className="size-3.5 shrink-0" /> View-only — this note stays here for you to
+              check back on any time, it doesn't expire.
             </p>
           </>
         )}
@@ -631,7 +711,7 @@ function StudentHome({
 
   if (view === "schedule") {
     return (
-      <div className="mt-6">
+      <div>
         <BackButton onClick={backToChoice} label="Back to your options" />
         <ScheduleView
           greetingName={greetingName}
@@ -647,7 +727,7 @@ function StudentHome({
 
   if (view === "notes") {
     return (
-      <div className="mt-6">
+      <div>
         <BackButton onClick={backToChoice} label="Back to your options" />
         <h3 className="text-muted-foreground flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
           <NotebookText className="size-3.5" /> In-Class Notes
@@ -664,10 +744,12 @@ function StudentHome({
   ).length;
 
   return (
-    <div className="mt-6">
+    <div>
       <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 flex items-center gap-2 duration-500">
         <Sparkles className="text-accent size-4" />
-        <p className="text-lg font-medium">Hi {greetingName.split(" ")[0]}, what would you like to check?</p>
+        <p className="text-lg font-medium">
+          Hi {greetingName.split(" ")[0]}, what would you like to check?
+        </p>
       </div>
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <ChoiceCard
@@ -703,7 +785,11 @@ function StudentHome({
  *  added, a reschedule confirmed — shows up here without the visitor
  *  re-entering their details. Failures are swallowed; the last good result
  *  just stays on screen until the next successful tick. */
-function useLiveRefresh<T>(active: boolean, fetcher: () => Promise<T | null>, onUpdate: (r: T) => void) {
+function useLiveRefresh<T>(
+  active: boolean,
+  fetcher: () => Promise<T | null>,
+  onUpdate: (r: T) => void,
+) {
   const fetcherRef = useRef(fetcher);
   const onUpdateRef = useRef(onUpdate);
   fetcherRef.current = fetcher;
@@ -733,7 +819,7 @@ function useLiveRefresh<T>(active: boolean, fetcher: () => Promise<T | null>, on
   }, [active]);
 }
 
-function StudentLookup() {
+function StudentLookup({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -791,56 +877,267 @@ function StudentLookup() {
   }
 
   return (
-    <Card className="border-border/60 mt-6">
-      <CardContent className="pt-6">
-        <form onSubmit={submit} className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="student-name">Your full name</Label>
-            <Input id="student-name" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="student-phone">Last 4 digits of your phone number</Label>
-            <Input
-              id="student-phone"
-              inputMode="numeric"
-              maxLength={4}
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-          </div>
-          {error && (
-            <p className="text-destructive flex items-center gap-2 text-sm">
-              <AlertCircle className="size-4 shrink-0" /> {error}
-            </p>
-          )}
-          <Button type="submit" disabled={loading} className="w-full sm:w-auto">
-            {loading ? "Checking…" : "View my lessons"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <div>
+      <BackButton onClick={onBack} label="Choose a different role" />
+      <Card className="border-border/60">
+        <CardContent className="pt-6">
+          <SignInHeader
+            icon={GraduationCap}
+            tone="student"
+            title="Student sign-in"
+            subtitle="Use the name and phone number you enrolled with."
+          />
+          <form onSubmit={submit} className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="student-name">Your full name</Label>
+              <Input
+                id="student-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="student-phone">Last 4 digits of your phone number</Label>
+              <Input
+                id="student-phone"
+                inputMode="numeric"
+                maxLength={4}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-destructive flex items-center gap-2 text-sm">
+                <AlertCircle className="size-4 shrink-0" /> {error}
+              </p>
+            )}
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+              {loading ? "Checking…" : "View my lessons"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-function InstructorLookup() {
+/** Small header shown above a sign-in form so each role's login looks like its own space. */
+function SignInHeader({
+  icon: Icon,
+  tone,
+  title,
+  subtitle,
+}: {
+  icon: typeof GraduationCap;
+  tone: "student" | "instructor";
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="mb-6 flex items-center gap-3">
+      <div
+        className={cn(
+          "flex size-11 shrink-0 items-center justify-center rounded-xl",
+          tone === "student" ? "bg-primary/10 text-primary" : "bg-accent/20 text-accent-foreground",
+        )}
+      >
+        <Icon className="size-5" />
+      </div>
+      <div>
+        <h2 className="text-base leading-tight font-semibold">{title}</h2>
+        <p className="text-muted-foreground mt-0.5 text-xs">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function initialsOf(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return (
+    (parts[0]?.[0] ?? "?") + (parts.length > 1 ? parts[parts.length - 1][0] : "")
+  ).toUpperCase();
+}
+
+/**
+ * What an instructor sees after signing in — deliberately not the student
+ * layout: a teaching-day dashboard (today's lessons up top, quick counts)
+ * with their schedule and the notes the school has sent them one tap away.
+ */
+function InstructorHome({
+  greetingName,
+  lessons,
+  notes,
+  onReset,
+}: {
+  greetingName: string;
+  lessons: MyLesson[];
+  notes: StudentNote[];
+  onReset: () => void;
+}) {
+  const [view, setView] = useState<"home" | "schedule" | "notes">("home");
+  const backHome = () => setView("home");
+
+  if (view === "schedule") {
+    return (
+      <div>
+        <BackButton onClick={backHome} label="Back to your dashboard" />
+        <ScheduleView
+          greetingName={greetingName}
+          lessons={lessons}
+          otherPartyLabel={(l) => l.studentName ?? "a student"}
+          onReset={onReset}
+          resetLabel="Sign out"
+          role="instructor"
+        />
+      </div>
+    );
+  }
+
+  if (view === "notes") {
+    return (
+      <div>
+        <BackButton onClick={backHome} label="Back to your dashboard" />
+        <h3 className="text-muted-foreground flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
+          <NotebookText className="size-3.5" /> Notes from the school
+        </h3>
+        <div className="mt-4">
+          <NotesGrid
+            notes={notes}
+            studentName={greetingName}
+            onReset={onReset}
+            resetLabel="Sign out"
+            emptyText="Notes the school sends to you will show up here. Only you can see them."
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const now = new Date();
+  const scheduled = lessons.filter((l) => l.status === "scheduled");
+  const today = scheduled
+    .filter((l) => new Date(l.startsAt).toDateString() === now.toDateString())
+    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
+  const weekEnd = new Date(now);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const next7 = scheduled.filter((l) => {
+    const t = new Date(l.startsAt);
+    return t >= now && t < weekEnd;
+  }).length;
+  const upcomingCount = scheduled.filter(
+    (l) => new Date(new Date(l.startsAt).getTime() + l.minutes * 60_000) > now,
+  ).length;
+
+  return (
+    <div>
+      <div className="border-accent/40 from-accent/15 via-primary/5 relative overflow-hidden rounded-3xl border bg-gradient-to-br to-transparent p-5">
+        <div className="flex items-center gap-4">
+          <div className="bg-accent text-accent-foreground flex size-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold shadow-sm">
+            {initialsOf(greetingName)}
+          </div>
+          <div className="min-w-0">
+            <p className="text-accent-foreground/80 text-[10px] font-bold tracking-wider uppercase">
+              Instructor portal
+            </p>
+            <p className="truncate text-xl font-semibold">Welcome, {greetingName.split(" ")[0]}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        <StatPill icon={Clock} value={today.length} label="Today" />
+        <StatPill icon={CalendarCheck2} value={next7} label="Next 7 days" />
+        <StatPill icon={NotebookText} value={notes.length} label="Notes" />
+      </div>
+
+      <h3 className="text-muted-foreground mt-7 flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
+        <CalendarClock className="size-3.5" /> Today
+      </h3>
+      {today.length === 0 ? (
+        <p className="text-muted-foreground bg-secondary/50 mt-3 rounded-xl px-4 py-3 text-sm">
+          No lessons today. Enjoy the breather.
+        </p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {today.map((l) => (
+            <li
+              key={l.id}
+              className="border-border/60 bg-card flex items-center gap-3 rounded-xl border px-4 py-3"
+            >
+              <span className="text-primary w-20 shrink-0 text-sm font-semibold">
+                {fmtTime(l.startsAt)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">
+                  {l.studentName ?? "A student"}
+                </span>
+                <span className="text-muted-foreground text-xs">
+                  {l.minutes} min · {l.lessonType === "provisional" ? "Provisional" : "Driving"}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-7 grid gap-4 sm:grid-cols-2">
+        <ChoiceCard
+          icon={CalendarClock}
+          title="My schedule"
+          description={
+            upcomingCount > 0
+              ? `${upcomingCount} upcoming lesson${upcomingCount === 1 ? "" : "s"}`
+              : "See your lesson history"
+          }
+          onClick={() => setView("schedule")}
+        />
+        <ChoiceCard
+          icon={NotebookText}
+          title="Notes"
+          description={
+            notes.length > 0
+              ? `${notes.length} note${notes.length === 1 ? "" : "s"} from the school`
+              : "Nothing sent yet"
+          }
+          onClick={() => setView("notes")}
+        />
+      </div>
+      <Button variant="ghost" size="sm" className="mt-8" onClick={onReset}>
+        Sign out
+      </Button>
+    </div>
+  );
+}
+
+function InstructorLookup({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState("");
-  const [pin, setPin] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ instructorName: string; lessons: MyLesson[] } | null>(null);
+  const [result, setResult] = useState<{ instructorName: string; lessons: MyLesson[] } | null>(
+    null,
+  );
+  const [notes, setNotes] = useState<StudentNote[]>([]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const r = await fetchMyLessonsAsInstructor(name, pin);
+      const r = await fetchMyLessonsAsInstructor(name, phone);
       if (!r) {
-        setError("Those details don't match. Check your name and PIN, or ask the school to set one for you.");
+        setError(
+          "Those details don't match. Check your name and phone number, or ask the school to confirm the number saved on your profile.",
+        );
         setResult(null);
       } else {
         setResult(r);
+        // Best-effort — a hiccup fetching notes shouldn't block the schedule.
+        fetchMyNotesAsInstructor(name, phone)
+          .then((n) => setNotes(n?.notes ?? []))
+          .catch(() => {});
       }
     } catch (err) {
       setError(errorMessage(err, "Something went wrong. Try again."));
@@ -851,122 +1148,169 @@ function InstructorLookup() {
 
   useLiveRefresh(
     !!result,
-    () => fetchMyLessonsAsInstructor(name, pin),
+    () => fetchMyLessonsAsInstructor(name, phone),
     (r) => setResult(r),
+  );
+  useLiveRefresh(
+    !!result,
+    () => fetchMyNotesAsInstructor(name, phone),
+    (n) => setNotes(n?.notes ?? []),
   );
 
   if (result) {
     return (
-      <ScheduleView
+      <InstructorHome
         greetingName={result.instructorName}
         lessons={result.lessons}
-        otherPartyLabel={(l) => l.studentName ?? "a student"}
-        onReset={() => setResult(null)}
-        resetLabel="Check a different instructor"
-        role="instructor"
+        notes={notes}
+        onReset={() => {
+          setResult(null);
+          setNotes([]);
+        }}
       />
     );
   }
 
   return (
-    <Card className="border-border/60 mt-6">
-      <CardContent className="pt-6">
-        <form onSubmit={submit} className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="instructor-name">Your name</Label>
-            <Input id="instructor-name" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="instructor-pin">PIN</Label>
-            <Input id="instructor-pin" value={pin} onChange={(e) => setPin(e.target.value)} required />
-          </div>
-          {error && (
-            <p className="text-destructive flex items-center gap-2 text-sm">
-              <AlertCircle className="size-4 shrink-0" /> {error}
-            </p>
-          )}
-          <Button type="submit" disabled={loading} className="w-full sm:w-auto">
-            {loading ? "Checking…" : "View my schedule"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <div>
+      <BackButton onClick={onBack} label="Choose a different role" />
+      <Card className="border-accent/40 border-t-accent border-t-4">
+        <CardContent className="pt-6">
+          <SignInHeader
+            icon={Car}
+            tone="instructor"
+            title="Instructor sign-in"
+            subtitle="Use your name and the phone number the school has on file for you."
+          />
+          <form onSubmit={submit} className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="instructor-name">Your full name</Label>
+              <Input
+                id="instructor-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="instructor-phone">Last 4 digits of your phone number</Label>
+              <Input
+                id="instructor-phone"
+                inputMode="numeric"
+                maxLength={4}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-destructive flex items-center gap-2 text-sm">
+                <AlertCircle className="size-4 shrink-0" /> {error}
+              </p>
+            )}
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+              {loading ? "Checking…" : "Open my dashboard"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-function RoleOption({
-  active,
+/** One of the two big role cards on the My Lessons landing. */
+function PortalCard({
   icon: Icon,
   title,
   description,
+  tone,
   onClick,
 }: {
-  active: boolean;
   icon: typeof GraduationCap;
   title: string;
   description: string;
+  tone: "student" | "instructor";
   onClick: () => void;
 }) {
+  const student = tone === "student";
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-1 items-center gap-3 rounded-xl border p-4 text-left transition-colors",
-        active
-          ? "border-primary bg-primary/5 ring-primary/20 ring-2"
-          : "border-border/60 hover:border-border hover:bg-secondary/40",
+        "bg-card group relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl border p-6 text-left transition-[transform,box-shadow] duration-300 will-change-transform hover:-translate-y-1.5 hover:shadow-lg",
+        student
+          ? "border-border/60 hover:border-primary/40"
+          : "border-accent/40 hover:border-accent",
       )}
     >
       <div
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-lg",
-          active ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground",
+          "flex size-14 items-center justify-center rounded-2xl transition-colors",
+          student
+            ? "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground"
+            : "bg-accent/20 text-accent-foreground group-hover:bg-accent",
         )}
       >
-        <Icon className="size-5" />
+        <Icon className="size-7" />
       </div>
       <div>
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="text-muted-foreground text-xs">{description}</p>
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <p className="text-muted-foreground mt-1 text-sm">{description}</p>
       </div>
+      <span
+        className={cn(
+          "mt-auto inline-flex items-center gap-1 text-sm font-medium",
+          student ? "text-primary" : "text-accent-foreground",
+        )}
+      >
+        Continue{" "}
+        <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+      </span>
     </button>
   );
 }
 
 function MyLessons() {
-  const [who, setWho] = useState<"student" | "instructor">("student");
+  const [who, setWho] = useState<"student" | "instructor" | null>(null);
 
   return (
     <Section className="max-w-xl">
       <SectionHeading
         eyebrow="Your schedule"
         title="My lessons"
-        subtitle="Check your upcoming lessons, no account needed."
+        subtitle={
+          who === null
+            ? "Who's checking in? Pick one to continue, no account needed."
+            : "Check your upcoming lessons, no account needed."
+        }
       />
       <div className="mt-8">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <RoleOption
-            active={who === "student"}
-            icon={GraduationCap}
-            title="I'm a student"
-            description="Check lessons booked under your name"
-            onClick={() => setWho("student")}
-          />
-          <RoleOption
-            active={who === "instructor"}
-            icon={User}
-            title="I'm an instructor"
-            description="Check your teaching schedule"
-            onClick={() => setWho("instructor")}
-          />
-        </div>
-        {who === "student" ? <StudentLookup /> : <InstructorLookup />}
+        {who === null && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <PortalCard
+              tone="student"
+              icon={GraduationCap}
+              title="I'm a student"
+              description="Your lessons, schedule and in-class notes"
+              onClick={() => setWho("student")}
+            />
+            <PortalCard
+              tone="instructor"
+              icon={Car}
+              title="I'm an instructor"
+              description="Your teaching day, schedule and notes from the school"
+              onClick={() => setWho("instructor")}
+            />
+          </div>
+        )}
+        {who === "student" && <StudentLookup onBack={() => setWho(null)} />}
+        {who === "instructor" && <InstructorLookup onBack={() => setWho(null)} />}
       </div>
       <p className="text-muted-foreground mt-10 flex items-start gap-2 text-xs">
         <CalendarCheck2 className="mt-0.5 size-3.5 shrink-0" />
-        Your name and phone number are only used to match your record, this page never shows anyone else's
-        lessons.
+        Your name and phone number are only used to match your record, this page never shows anyone
+        else's lessons.
       </p>
     </Section>
   );
