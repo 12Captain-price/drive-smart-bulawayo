@@ -42,6 +42,7 @@ import {
   gradeMcq,
   last4,
   makeToken,
+  allowedMinutes,
   timeLeftMs,
   useAssignments,
   useStudents,
@@ -362,7 +363,7 @@ function TakeTest() {
       },
       {
         icon: Timer,
-        text: `You'll have ${test.minutes + assignment.extensionMinutes} minutes once you start. The clock does not pause.`,
+        text: `You'll have ${allowedMinutes(test, assignment)} minutes once you start. The clock does not pause.`,
       },
       {
         icon: MousePointerClick,
@@ -431,7 +432,7 @@ function TakeTest() {
               <p className="label-mono text-accent">Your test</p>
               <h1 className="mt-2 text-2xl font-bold">{test.title}</h1>
               <p className="text-muted-foreground mt-2 text-sm">
-                You have {test.minutes + assignment.extensionMinutes} minutes. Once you start, the
+                You have {allowedMinutes(test, assignment)} minutes. Once you start, the
                 clock keeps running, so find a quiet spot first.
               </p>
             </div>

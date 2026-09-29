@@ -1,4 +1,4 @@
-import { useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -70,6 +70,7 @@ import { ChipGroup } from "@/components/site/ChipGroup";
 import {
   ACCEPTED_IMAGE_TYPES,
   ASSIGNMENT_STATUSES,
+  allowedMinutes,
   errorMessage,
   uploadTestFileToStorage,
   gradeMcq,
@@ -503,6 +504,9 @@ function TestEditor({
   const [answerKeyOpen, setAnswerKeyOpen] = useState(false);
   const [adjustingQuestionId, setAdjustingQuestionId] = useState<string | null>(null);
   const [previewQuestionId, setPreviewQuestionId] = useState<string | null>(null);
+  // Typed text for the default-time box, so it can be cleared and retyped;
+  // the number is only saved when the box loses focus.
+  const [minutesDraft, setMinutesDraft] = useState<string | null>(null);
   const setQuestions = (questions: Question[]) => update(test.id, { questions });
   const ready = testIsReady(test);
   const readyReason = testReadyReason(test);
@@ -611,7 +615,7 @@ function TestEditor({
             <Badge variant="outline" className="font-mono text-[0.65rem] font-medium">
               {test.type === "mcq" ? "Multiple choice" : "PDF paper"}
             </Badge>
-            <span>{test.minutes} min</span>
+            <span>{test.minutes} min default</span>
             {test.type === "mcq" && (
               <>
                 <span aria-hidden>·</span>
@@ -645,13 +649,24 @@ function TestEditor({
               />
             </div>
             <div className="grid gap-2">
-              <Label>Time allowed (minutes)</Label>
+              <Label>Default time (minutes)</Label>
               <Input
                 type="number"
                 min={1}
-                value={test.minutes}
-                onChange={(e) => update(test.id, { minutes: Number(e.target.value) || 1 })}
+                value={minutesDraft ?? String(test.minutes)}
+                onChange={(e) => setMinutesDraft(e.target.value)}
+                onBlur={() => {
+                  const n = Math.round(Number(minutesDraft));
+                  if (minutesDraft !== null && n >= 1 && n !== test.minutes) {
+                    update(test.id, { minutes: n });
+                  }
+                  setMinutesDraft(null);
+                }}
               />
+              <p className="text-muted-foreground text-xs">
+                Only a starting point. You set the real time for each student when you send the
+                test out.
+              </p>
             </div>
           </div>
 
@@ -1944,6 +1959,7 @@ function AssignPanel() {
   const { items: assignments, addMany, update, remove, removeMany } = useAssignments();
   const { settings } = useSettings();
   const [testId, setTestId] = useState("");
+  const [minutesInput, setMinutesInput] = useState("");
   const [studentIds, setStudentIds] = useState<string[]>([]);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [listQuery, setListQuery] = useState("");
@@ -1954,6 +1970,13 @@ function AssignPanel() {
   } | null>(null);
 
   const test = tests.find((t) => t.id === testId);
+
+  // Picking a test fills in its default time, which can then be changed for
+  // this send-out.
+  useEffect(() => {
+    setMinutesInput(test ? String(test.minutes) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testId]);
 
   const counts = useMemo(() => {
     const c: Record<AssignmentStatus, number> = {
@@ -1987,6 +2010,11 @@ function AssignPanel() {
 
   function doCreate(targets: Student[]) {
     if (!test) return;
+    const minutes = Math.round(Number(minutesInput));
+    if (!(minutes >= 1)) {
+      toast.error("Enter the time allowed, in minutes");
+      return;
+    }
     safe(
       async () => {
         const created = await addMany(
@@ -1996,6 +2024,7 @@ function AssignPanel() {
             token: makeToken(),
             accessCode: makeAccessCode(),
             status: "not-started" as AssignmentStatus,
+            minutes,
             extensionMinutes: 0,
             notes: "",
             log: [{ at: new Date().toISOString(), text: "Test sent out" }],
@@ -2025,6 +2054,10 @@ function AssignPanel() {
       toast.error("That test isn't finished yet");
       return;
     }
+    if (!(Math.round(Number(minutesInput)) >= 1)) {
+      toast.error("Enter the time allowed, in minutes");
+      return;
+    }
     const duplicates = targets.filter((s) => hasUnfinished(s.id, test.id));
     if (duplicates.length > 0) {
       setDuplicateInfo({ duplicates, targets });
@@ -2046,6 +2079,21 @@ function AssignPanel() {
               options={tests.map((t) => ({ value: t.id, label: t.title }))}
               emptyText="No tests yet, add one in the Test bank tab."
             />
+          </div>
+          <div className="grid gap-2 sm:max-w-xs">
+            <Label>Time allowed (minutes)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={minutesInput}
+              disabled={!test}
+              placeholder={test ? undefined : "Choose a test first"}
+              onChange={(e) => setMinutesInput(e.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">
+              Applies to every student picked below. To give different students different times,
+              send them in separate batches. You can also change it later for one student.
+            </p>
           </div>
           <div className="grid gap-2">
             <Label>Which student(s)?</Label>
@@ -2236,11 +2284,12 @@ function AssignmentCard({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [minutesDraft, setMinutesDraft] = useState<string | null>(null);
   const link = `${origin()}/test/${a.token}`;
   const statusLabel = ASSIGNMENT_STATUSES.find((x) => x.value === a.status)?.label ?? a.status;
   const message = [
     `Hi ${s?.name ?? ""}, here is your ${t?.title ?? "test"} from Auto Driving School.`,
-    `Time allowed: ${(t?.minutes ?? 0) + a.extensionMinutes} minutes.`,
+    `Time allowed: ${allowedMinutes(t, a)} minutes.`,
     `Open this link when you are ready, it only works once:`,
     link,
     `To start, you will type your name, the last 4 digits of your phone number, and this access code: ${a.accessCode}`,
@@ -2267,7 +2316,7 @@ function AssignmentCard({
                 <Badge variant="outline" className="font-mono text-[0.65rem] font-medium">
                   {t?.title ?? "Deleted test"}
                 </Badge>
-                <span>{(t?.minutes ?? 0) + a.extensionMinutes} min</span>
+                <span>{allowedMinutes(t, a)} min</span>
                 <span aria-hidden>·</span>
                 <span className={cn("font-medium", ASSIGNMENT_STATUS_TONE[a.status])}>
                   {statusLabel}
@@ -2392,6 +2441,27 @@ function AssignmentCard({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Time allowed (minutes)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={minutesDraft ?? String(a.minutes ?? t?.minutes ?? "")}
+                onChange={(e) => setMinutesDraft(e.target.value)}
+                onBlur={() => {
+                  const n = Math.round(Number(minutesDraft));
+                  if (minutesDraft !== null && n >= 1 && n !== (a.minutes ?? t?.minutes)) {
+                    update(a.id, { minutes: n });
+                  }
+                  setMinutesDraft(null);
+                }}
+              />
+              {a.status === "in-progress" && (
+                <p className="text-muted-foreground text-xs">
+                  The student is writing now. A change counts from when they started.
+                </p>
+              )}
+            </div>
             <div className="grid gap-2">
               <Label>Extra time (minutes)</Label>
               <Input

@@ -917,6 +917,11 @@ interface RemoteTableConfig<T extends { id: string }> {
   /** Called once per row when Realtime delivers a fresh INSERT from another
    *  session (not our own optimistic insert) — e.g. to toast "New enquiry". */
   onRemoteInsert?: (row: T) => void;
+  /** Raw column -> mapped field. Realtime UPDATE payloads leave out large,
+   *  unchanged columns (e.g. a big stored test paper), which would make
+   *  fromRow() return undefined for them and wipe them from the screen.
+   *  When one of these columns is missing from an echo, keep our copy. */
+  preserveWhenMissing?: Record<string, keyof T>;
 }
 
 /**
@@ -955,6 +960,7 @@ function ensureRealtimeSubscribed<T extends { id: string }>(
   table: string,
   fromRow: (row: any) => T,
   onRemoteInsert?: (row: T) => void,
+  preserveWhenMissing?: Record<string, keyof T>,
 ) {
   if (typeof window === "undefined") return; // client-side only (SSR-safe)
   if (remoteChannels.has(key)) return;
@@ -981,7 +987,16 @@ function ensureRealtimeSubscribed<T extends { id: string }>(
           const row = fromRow(payload.new);
           writeRemote<T>(
             key,
-            list.map((i) => (i.id === row.id ? row : i)),
+            list.map((i) => {
+              if (i.id !== row.id) return i;
+              if (!preserveWhenMissing) return row;
+              // Keep our copy of any large column the echo left out.
+              const merged = { ...row };
+              for (const [col, field] of Object.entries(preserveWhenMissing)) {
+                if (payload.new?.[col] === undefined) merged[field] = i[field];
+              }
+              return merged;
+            }),
           );
         } else if (payload.eventType === "DELETE") {
           const deletedId = payload.old?.id;
@@ -1004,11 +1019,20 @@ function ensureRealtimeSubscribed<T extends { id: string }>(
 function useRemoteCollection<T extends { id: string }>(
   config: RemoteTableConfig<T>,
 ): Collection<T> {
-  const { key, table, orderColumn, ascending = false, fromRow, toRow, onRemoteInsert } = config;
+  const {
+    key,
+    table,
+    orderColumn,
+    ascending = false,
+    fromRow,
+    toRow,
+    onRemoteInsert,
+    preserveWhenMissing,
+  } = config;
 
   useEffect(() => {
     ensureRemoteLoaded(key, table, orderColumn, fromRow, ascending);
-    ensureRealtimeSubscribed(key, table, fromRow, onRemoteInsert);
+    ensureRealtimeSubscribed(key, table, fromRow, onRemoteInsert, preserveWhenMissing);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, table]);
 
@@ -2618,6 +2642,10 @@ export interface Assignment {
   status: AssignmentStatus;
   startedAt?: string;
   submittedAt?: string;
+  /** Time allowed for THIS student, set when the test is assigned (it varies
+   *  with the student's level). Missing on older assignments, which fall back
+   *  to the test's own default time. */
+  minutes?: number;
   extensionMinutes: number;
   notes: string;
   log: LogEntry[];
@@ -2692,6 +2720,11 @@ export const useTests = () =>
     orderColumn: "created_at",
     fromRow: testFromRow,
     toRow: testToRow,
+    preserveWhenMissing: {
+      paper: "paper",
+      answer_key: "answerKey",
+      questions: "questions",
+    },
   });
 
 function assignmentFromRow(row: any): Assignment {
@@ -2705,6 +2738,7 @@ function assignmentFromRow(row: any): Assignment {
     status: row.status,
     startedAt: row.started_at ?? undefined,
     submittedAt: row.submitted_at ?? undefined,
+    minutes: row.minutes ?? undefined,
     extensionMinutes: row.extension_minutes,
     notes: row.notes ?? "",
     log: row.log ?? [],
@@ -2723,6 +2757,7 @@ function assignmentToRow(item: Partial<Assignment>): Record<string, unknown> {
   if (has(item, "status")) row.status = item.status;
   if (has(item, "startedAt")) row.started_at = item.startedAt || null;
   if (has(item, "submittedAt")) row.submitted_at = item.submittedAt || null;
+  if (has(item, "minutes")) row.minutes = item.minutes ?? null;
   if (has(item, "extensionMinutes")) row.extension_minutes = item.extensionMinutes;
   if (has(item, "notes")) row.notes = item.notes;
   if (has(item, "log")) row.log = item.log;
@@ -3050,9 +3085,10 @@ export function testReadyReason(t: Test): string | null {
   return null;
 }
 
-/** Total minutes allowed for an assignment, including any extension. */
-export const allowedMinutes = (test: Test, a: Assignment) =>
-  test.minutes + (a.extensionMinutes || 0);
+/** Total minutes allowed for an assignment: the time set when it was assigned
+ *  (or the test's default for older assignments) plus any extra time. */
+export const allowedMinutes = (test: Pick<Test, "minutes"> | undefined, a: Assignment) =>
+  (a.minutes ?? test?.minutes ?? 0) + (a.extensionMinutes || 0);
 
 /** Milliseconds left, or null when not started. */
 export function timeLeftMs(test: Test, a: Assignment, now = Date.now()) {

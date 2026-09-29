@@ -294,6 +294,7 @@ export interface Database {
           status: "not-started" | "in-progress" | "submitted" | "expired";
           started_at: string | null;
           submitted_at: string | null;
+          minutes: number | null;
           extension_minutes: number;
           notes: string;
           log: Json;
@@ -310,6 +311,7 @@ export interface Database {
           status?: "not-started" | "in-progress" | "submitted" | "expired";
           started_at?: string | null;
           submitted_at?: string | null;
+          minutes?: number | null;
           extension_minutes?: number;
           notes?: string;
           log?: Json;
