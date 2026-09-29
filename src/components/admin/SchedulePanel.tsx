@@ -17,6 +17,7 @@ import {
   ListChecks,
   MessageCircle,
   Plus,
+  Search,
   Trash2,
   Upload,
   Users,
@@ -158,7 +159,7 @@ export function SchedulePanel({
   seedStudentId?: string | null;
   onSeedConsumed?: () => void;
 } = {}) {
-  const { items: lessons, add, addMany, update, remove } = useLessons();
+  const { items: lessons, add, addMany, update, remove, removeMany } = useLessons();
   const { items: students } = useStudents();
   const { items: instructors } = useInstructors();
   const { items: packages } = usePackages();
@@ -184,6 +185,33 @@ export function SchedulePanel({
 
   const studentName = (id: string) => students.find((s) => s.id === id)?.name ?? "Unknown student";
   const instructorName = (id: string) => instructors.find((i) => i.id === id)?.name ?? "Unassigned";
+
+  const [view, setView] = useState<"student" | "day">("student");
+  const [query, setQuery] = useState("");
+  const [openStudentId, setOpenStudentId] = useState<string | null>(null);
+
+  // One group per student with lessons this week, ordered by their first lesson.
+  const studentGroups = useMemo(() => {
+    const map = new Map<string, Lesson[]>();
+    for (const l of weekLessons) {
+      const list = map.get(l.studentId);
+      if (list) list.push(l);
+      else map.set(l.studentId, [l]);
+    }
+    const q = query.trim().toLowerCase();
+    return [...map.entries()]
+      .map(([id, ls]) => ({ id, student: students.find((s) => s.id === id), lessons: ls }))
+      .filter((g) => !q || (g.student?.name ?? "unknown student").toLowerCase().includes(q));
+  }, [weekLessons, students, query]);
+
+  const openLessons = useMemo(
+    () => (openStudentId ? weekLessons.filter((l) => l.studentId === openStudentId) : []),
+    [weekLessons, openStudentId],
+  );
+  // Close the panel once its student has nothing left this week (e.g. after Delete all).
+  useEffect(() => {
+    if (openStudentId && openLessons.length === 0) setOpenStudentId(null);
+  }, [openStudentId, openLessons.length]);
 
   return (
     <div className="space-y-4">
@@ -267,7 +295,65 @@ export function SchedulePanel({
         </p>
       )}
 
-      <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ChipGroup
+          size="sm"
+          value={view}
+          options={[
+            { value: "student", label: "By student" },
+            { value: "day", label: "By day" },
+          ]}
+          onChange={(v) => setView(v as "student" | "day")}
+        />
+        {view === "student" && (
+          <div className="relative w-full sm:w-64">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search students"
+              className="pl-9"
+            />
+          </div>
+        )}
+      </div>
+
+      {view === "student" && (
+        <>
+          {studentGroups.length === 0 ? (
+            <p className="text-muted-foreground/80 rounded-lg border border-dashed p-6 text-center text-sm">
+              {query ? "No students match your search." : "No lessons scheduled this week."}
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {studentGroups.map((g) => (
+                <StudentCard
+                  key={g.id}
+                  student={g.student}
+                  count={g.lessons.length}
+                  onOpen={() => setOpenStudentId(g.id)}
+                />
+              ))}
+            </div>
+          )}
+          <StudentWeekDialog
+            open={!!openStudentId && openLessons.length > 0}
+            onOpenChange={(v) => !v && setOpenStudentId(null)}
+            student={students.find((s) => s.id === openStudentId)}
+            weekLabel={fmtWeekRange(weekStart)}
+            weekLessons={openLessons}
+            lessons={lessons}
+            students={students}
+            instructors={instructors}
+            settings={settings}
+            update={update}
+            remove={remove}
+            removeMany={removeMany}
+          />
+        </>
+      )}
+
+      <div className={cn("space-y-5", view !== "day" && "hidden")}>
         {days.map((day) => {
           const dayLessons = weekLessons.filter(
             (l) => new Date(l.startsAt).toDateString() === day.toDateString(),
@@ -362,9 +448,13 @@ function LessonRecordsDialog({
     return c;
   }, [filtered]);
 
-  const scopeTitle = selectedStudent ? `Lesson Records: ${selectedStudent.name}` : "Lesson Records: All Students";
+  const scopeTitle = selectedStudent
+    ? `Lesson Records: ${selectedStudent.name}`
+    : "Lesson Records: All Students";
   const scopeSubtitle = `${filtered.length} lesson${filtered.length === 1 ? "" : "s"}${
-    statusFilter === "all" ? "" : ` · ${LESSON_STATUSES.find((s) => s.value === statusFilter)?.label}`
+    statusFilter === "all"
+      ? ""
+      : ` · ${LESSON_STATUSES.find((s) => s.value === statusFilter)?.label}`
   } · generated ${new Date().toLocaleDateString()}`;
 
   function reportRows(): LessonReportRow[] {
@@ -391,8 +481,8 @@ function LessonRecordsDialog({
         <DialogHeader>
           <DialogTitle>Lesson records</DialogTitle>
           <DialogDescription>
-            View every scheduled lesson for one student, or the whole school, then export the
-            view as a spreadsheet or a printable PDF report.
+            View every scheduled lesson for one student, or the whole school, then export the view
+            as a spreadsheet or a printable PDF report.
           </DialogDescription>
         </DialogHeader>
 
@@ -486,7 +576,10 @@ function LessonRecordsDialog({
                     <TableCell className="capitalize">{l.lessonType}</TableCell>
                     <TableCell>{l.minutes}m</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn("font-medium", STATUS_BADGE_CLASS[l.status])}>
+                      <Badge
+                        variant="outline"
+                        className={cn("font-medium", STATUS_BADGE_CLASS[l.status])}
+                      >
                         {LESSON_STATUSES.find((s) => s.value === l.status)?.label}
                       </Badge>
                     </TableCell>
@@ -555,6 +648,192 @@ function LessonRecordsDialog({
   );
 }
 
+/* ------------------------------ student cards ------------------------------- */
+
+function StudentStatusBadge({ status }: { status: Student["status"] }) {
+  const active = status === "active";
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "gap-1 text-[0.7rem] font-medium",
+        active
+          ? "border-success/30 bg-success/10 text-success"
+          : "border-border bg-muted text-muted-foreground",
+      )}
+    >
+      <CheckCircle2 className="size-3.5" />
+      {active ? "Active" : "Completed"}
+    </Badge>
+  );
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return (
+    (parts[0]?.[0] ?? "?") + (parts.length > 1 ? parts[parts.length - 1][0] : "")
+  ).toUpperCase();
+}
+
+/** One neat card per student: name, enrolment status, lesson count. */
+function StudentCard({
+  student,
+  count,
+  onOpen,
+}: {
+  student: Student | undefined;
+  count: number;
+  onOpen: () => void;
+}) {
+  const name = student?.name ?? "Unknown student";
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="bg-card hover:border-primary/40 group flex w-full items-center gap-3 rounded-xl border p-4 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <span className="bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+        {initials(name)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold">{name}</span>
+        <span className="mt-1 flex flex-wrap items-center gap-2">
+          {student && <StudentStatusBadge status={student.status} />}
+          <span className="text-muted-foreground text-xs">
+            {count} lesson{count === 1 ? "" : "s"} this week
+          </span>
+        </span>
+      </span>
+      <ChevronRight className="text-muted-foreground group-hover:text-foreground size-4 shrink-0 transition-colors" />
+    </button>
+  );
+}
+
+/** A student's week in one place: every lesson as a compact row, with delete-one or delete-all. */
+function StudentWeekDialog({
+  open,
+  onOpenChange,
+  student,
+  weekLabel,
+  weekLessons,
+  lessons,
+  students,
+  instructors,
+  settings,
+  update,
+  remove,
+  removeMany,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  student: Student | undefined;
+  weekLabel: string;
+  weekLessons: Lesson[];
+  lessons: Lesson[];
+  students: Student[];
+  instructors: Instructor[];
+  settings: SiteSettings;
+  update: (id: string, patch: Partial<Lesson>) => void;
+  remove: (id: string) => void;
+  removeMany: (ids: string[]) => void;
+}) {
+  const name = student?.name ?? "Unknown student";
+  const count = weekLessons.length;
+
+  const instructorNames = [
+    ...new Set(
+      weekLessons.map(
+        (l) => instructors.find((i) => i.id === l.instructorId)?.name ?? "Unassigned",
+      ),
+    ),
+  ].join(", ");
+  const planMessage =
+    student && count > 0
+      ? renderTemplate(settings.waWeeklyPlanTemplate, {
+          recipient: student.name,
+          student: student.name,
+          instructor: instructorNames,
+          schedule: formatWeeklySchedule(weekLessons),
+          link: typeof window === "undefined" ? "" : `${window.location.origin}/my-lessons`,
+        })
+      : "";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            {name}
+            {student && <StudentStatusBadge status={student.status} />}
+          </DialogTitle>
+          <DialogDescription>
+            {weekLabel} · {count} lesson{count === 1 ? "" : "s"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-wrap gap-2">
+          {student?.phone && planMessage && (
+            <Button size="sm" variant="outline" asChild>
+              <a href={waLink(student.phone, planMessage)} target="_blank" rel="noreferrer">
+                <MessageCircle className="size-4" /> Send weekly plan
+              </a>
+            </Button>
+          )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="size-4" /> Delete all this week
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete all {count} lesson{count === 1 ? "" : "s"} for {name}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes every lesson in {weekLabel}, whatever its status. Other weeks aren't
+                  touched. This can't be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    removeMany(weekLessons.map((l) => l.id));
+                    toast.success(`${count} lesson${count === 1 ? "" : "s"} deleted`);
+                  }}
+                >
+                  Delete all
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+
+        <div className="space-y-2">
+          {weekLessons.map((l) => (
+            <LessonCard
+              key={l.id}
+              compact
+              lesson={l}
+              lessons={lessons}
+              students={students}
+              instructors={instructors}
+              settings={settings}
+              update={update}
+              remove={remove}
+            />
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ------------------------------- lesson card -------------------------------- */
 
 function LessonCard({
@@ -565,6 +844,7 @@ function LessonCard({
   settings,
   update,
   remove,
+  compact = false,
 }: {
   lesson: Lesson;
   lessons: Lesson[];
@@ -573,6 +853,9 @@ function LessonCard({
   settings: SiteSettings;
   update: (id: string, patch: Partial<Lesson>) => void;
   remove: (id: string) => void;
+  /** Inside a student's weekly panel: leads with the day and time (the
+   *  student is already known) and puts a quick delete on the row. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const student = students.find((s) => s.id === l.studentId);
@@ -592,56 +875,96 @@ function LessonCard({
 
   return (
     <Card className="overflow-hidden py-0 transition-shadow hover:shadow-md">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="hover:bg-secondary/40 flex w-full items-center gap-3 px-5 py-3 text-left transition-colors"
-      >
-        <span className="bg-primary/10 text-primary flex size-9 shrink-0 flex-col items-center justify-center rounded-full text-[0.6rem] font-semibold leading-tight">
-          <Clock className="size-4" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold">
-            {fmtTime(l.startsAt)} – {fmtTime(endTime.toISOString())} ·{" "}
-            {student?.name ?? "Unknown student"}
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="hover:bg-secondary/40 flex min-w-0 flex-1 items-center gap-3 px-5 py-3 text-left transition-colors"
+        >
+          <span className="bg-primary/10 text-primary flex size-9 shrink-0 flex-col items-center justify-center rounded-full text-[0.6rem] font-semibold leading-tight">
+            <Clock className="size-4" />
           </span>
-          <span className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
-            <span>{instructor?.name ?? "Unassigned"}</span>
-            <span aria-hidden>·</span>
-            <Badge variant="outline" className="text-[0.65rem] font-medium capitalize">
-              {l.lessonType}
-            </Badge>
-            <span aria-hidden>·</span>
-            <span
-              className={cn(
-                "font-medium capitalize",
-                l.status === "scheduled" && "text-primary",
-                l.status === "completed" && "text-success",
-                l.status === "cancelled" && "text-muted-foreground",
-                l.status === "no-show" && "text-destructive",
-              )}
-            >
-              {l.status.replace("-", " ")}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold">
+              {compact
+                ? new Date(l.startsAt).toLocaleDateString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  }) + " · "
+                : ""}
+              {fmtTime(l.startsAt)} – {fmtTime(endTime.toISOString())}
+              {compact ? "" : <> · {student?.name ?? "Unknown student"}</>}
             </span>
-            {l.status === "scheduled" && l.rescheduled && (
-              <>
-                <span aria-hidden>·</span>
-                <Badge
-                  variant="outline"
-                  className="text-accent-foreground border-accent/40 bg-accent/15 gap-1 text-[0.65rem] font-medium"
-                >
-                  <History className="size-3" /> Rescheduled
-                </Badge>
-              </>
-            )}
+            <span className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
+              <span>{instructor?.name ?? "Unassigned"}</span>
+              <span aria-hidden>·</span>
+              <Badge variant="outline" className="text-[0.65rem] font-medium capitalize">
+                {l.lessonType}
+              </Badge>
+              <span aria-hidden>·</span>
+              <span
+                className={cn(
+                  "font-medium capitalize",
+                  l.status === "scheduled" && "text-primary",
+                  l.status === "completed" && "text-success",
+                  l.status === "cancelled" && "text-muted-foreground",
+                  l.status === "no-show" && "text-destructive",
+                )}
+              >
+                {l.status.replace("-", " ")}
+              </span>
+              {l.status === "scheduled" && l.rescheduled && (
+                <>
+                  <span aria-hidden>·</span>
+                  <Badge
+                    variant="outline"
+                    className="text-accent-foreground border-accent/40 bg-accent/15 gap-1 text-[0.65rem] font-medium"
+                  >
+                    <History className="size-3" /> Rescheduled
+                  </Badge>
+                </>
+              )}
+            </span>
           </span>
-        </span>
-        {open ? (
-          <ChevronUp className="text-muted-foreground size-4 shrink-0" />
-        ) : (
-          <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+          {open ? (
+            <ChevronUp className="text-muted-foreground size-4 shrink-0" />
+          ) : (
+            <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+          )}
+        </button>
+        {compact && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive mr-2 shrink-0"
+                aria-label="Delete lesson"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this lesson?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {new Date(l.startsAt).toLocaleDateString(undefined, {
+                    weekday: "long",
+                    month: "short",
+                    day: "numeric",
+                  })}{" "}
+                  at {fmtTime(l.startsAt)}. This can't be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => remove(l.id)}>Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
-      </button>
+      </div>
 
       {open && (
         <CardContent className="grid gap-3 border-t pt-5 pb-6 sm:grid-cols-2">
@@ -782,7 +1105,7 @@ function LessonCard({
               </Button>
             )}
           </div>
-          <div className="sm:col-span-2">
+          <div className={cn("sm:col-span-2", compact && "hidden")}>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm">
@@ -1055,14 +1378,18 @@ function WeeklyScheduleDialog({
   const [instructorId, setInstructorId] = useState("");
   const [lessonType, setLessonType] = useState<LessonType>("driving");
   const [minutes, setMinutes] = useState(60);
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()).toISOString().slice(0, 10));
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeek(new Date()).toISOString().slice(0, 10),
+  );
   const [notes, setNotes] = useState("");
   const [days, setDays] = useState<Record<string, DaySelection>>(() =>
     Object.fromEntries(WEEK_DAYS.map((d) => [d.short, { enabled: false, time: "09:00" }])),
   );
-  const [result, setResult] = useState<{ created: Lesson[]; student: Student; instructor: Instructor } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    created: Lesson[];
+    student: Student;
+    instructor: Instructor;
+  } | null>(null);
 
   function reset() {
     setStudentId("");
@@ -1305,7 +1632,11 @@ function WeeklyScheduleDialog({
                     className="bg-success text-success-foreground hover:bg-success/90"
                     asChild
                   >
-                    <a href={waLink(result.student.phone, studentMessage)} target="_blank" rel="noreferrer">
+                    <a
+                      href={waLink(result.student.phone, studentMessage)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       <MessageCircle className="size-4" /> Send to student
                     </a>
                   </Button>
