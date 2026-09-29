@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ChevronRight,
   Eye,
   FileText,
   GraduationCap,
@@ -45,6 +46,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { NoteAttachments } from "@/components/site/AttachmentView";
+import { ChipGroup } from "@/components/site/ChipGroup";
 import {
   MAX_NOTE_ATTACHMENTS,
   attachmentKind,
@@ -91,6 +93,45 @@ function fmtDate(iso: string) {
 
 const origin = () => (typeof window === "undefined" ? "" : window.location.origin);
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return (
+    (parts[0]?.[0] ?? "?") + (parts.length > 1 ? parts[parts.length - 1][0] : "")
+  ).toUpperCase();
+}
+
+/** One neat card per person: name, how many notes they have, and the latest date. */
+function PersonCard({
+  name,
+  count,
+  latest,
+  onOpen,
+}: {
+  name: string;
+  count: number;
+  latest: string;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="bg-card hover:border-primary/40 group flex w-full items-center gap-3 rounded-xl border p-4 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <span className="bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+        {initials(name)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold">{name}</span>
+        <span className="text-muted-foreground mt-1 block text-xs">
+          {count} note{count === 1 ? "" : "s"} · latest {fmtDate(latest)}
+        </span>
+      </span>
+      <ChevronRight className="text-muted-foreground group-hover:text-foreground size-4 shrink-0 transition-colors" />
+    </button>
+  );
+}
+
 /** Small "PDF" / "Word doc" / "Spreadsheet" / "Photo" pill (or "3 files") for a note's attachments. */
 function AttachmentBadge({ note }: { note: StudentNote }) {
   const files = note.attachments;
@@ -125,6 +166,9 @@ export function NotesPanel() {
   const { settings } = useSettings();
 
   const [query, setQuery] = useState("");
+  const [audienceView, setAudienceView] = useState<NoteAudience>("students");
+  const [openPersonId, setOpenPersonId] = useState<string | null>(null);
+  const [composerKey, setComposerKey] = useState(0);
   const [editing, setEditing] = useState<StudentNote | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StudentNote | null>(null);
@@ -158,30 +202,68 @@ export function NotesPanel() {
     return waLink(recipient.phone, message);
   }
 
-  const filtered = useMemo(() => {
+  /** Notes for the audience currently shown (students or instructors only). */
+  const audienceNotes = useMemo(
+    () =>
+      notes.filter((n) =>
+        audienceView === "instructors" ? isInstructorNote(n) : !isInstructorNote(n),
+      ),
+    [notes, audienceView],
+  );
+  const counts = useMemo(() => {
+    const instructorCount = notes.filter((n) => Boolean(n.instructorId)).length;
+    return { instructors: instructorCount, students: notes.length - instructorCount };
+  }, [notes]);
+
+  /** One group per recipient, newest note first, filtered by the search box. */
+  const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const sorted = [...notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    if (!q) return sorted;
-    const nameOf = (n: StudentNote) =>
-      n.instructorId
-        ? (instructors.find((i) => i.id === n.instructorId)?.name ?? "")
-        : (students.find((s) => s.id === n.studentId)?.name ?? "");
-    return sorted.filter(
-      (n) =>
-        n.title.toLowerCase().includes(q) ||
-        n.body.toLowerCase().includes(q) ||
-        nameOf(n).toLowerCase().includes(q),
-    );
-  }, [notes, query, students, instructors]);
+    const map = new Map<string, StudentNote[]>();
+    for (const n of audienceNotes) {
+      const id = n.instructorId || n.studentId;
+      const list = map.get(id);
+      if (list) list.push(n);
+      else map.set(id, [n]);
+    }
+    return [...map.entries()]
+      .map(([id, list]) => {
+        const sorted = [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        return { id, name: recipientName(sorted[0]), notes: sorted };
+      })
+      .filter(
+        (g) =>
+          !q ||
+          g.name.toLowerCase().includes(q) ||
+          g.notes.some(
+            (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q),
+          ),
+      )
+      .sort((a, b) => b.notes[0].createdAt.localeCompare(a.notes[0].createdAt));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audienceNotes, query, students, instructors]);
+
+  const openGroup = groups.find((g) => g.id === openPersonId);
+  const openNotes = useMemo(
+    () => audienceNotes.filter((n) => (n.instructorId || n.studentId) === openPersonId),
+    [audienceNotes, openPersonId],
+  );
+  // Close the person's dialog once they have no notes left (e.g. after deleting the last one).
+  useEffect(() => {
+    if (openPersonId && openNotes.length === 0) setOpenPersonId(null);
+  }, [openPersonId, openNotes.length]);
 
   const openNew = () => {
     setEditing(null);
+    setComposerKey((k) => k + 1);
     setComposerOpen(true);
   };
   const openEdit = (n: StudentNote) => {
     setEditing(n);
+    setComposerKey((k) => k + 1);
     setComposerOpen(true);
   };
+
+  const forInstructorsView = audienceView === "instructors";
 
   return (
     <div className="space-y-6">
@@ -189,10 +271,10 @@ export function NotesPanel() {
         <div>
           <h1 className="text-xl font-semibold">Notes</h1>
           <p className="text-muted-foreground mt-1 max-w-prose text-sm">
-            Send students notes to revise — PDFs, Word docs, Excel sheets, photos, or just typed
-            text — after a provisional lesson or anytime. They see them read-only on the My Lessons
-            page: no download, and no expiry. You can also send a note to instructors only; it
-            appears just for them once they sign in on My Lessons.
+            Send notes to revise — PDFs, Word docs, Excel sheets, photos, or just typed text — after
+            a provisional lesson or anytime. Use the toggle to switch between student notes and
+            instructor-only notes, then open a person to see their notes. Recipients read them
+            read-only on the My Lessons page: no download, and no expiry.
           </p>
         </div>
         <Button onClick={openNew}>
@@ -201,102 +283,140 @@ export function NotesPanel() {
         </Button>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="text-muted-foreground pointer-events-none absolute top-3 left-3 size-4" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search notes or student name…"
-          className="pl-9"
-          aria-label="Search notes"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ChipGroup
+          size="sm"
+          ariaLabel="Show notes for"
+          value={audienceView}
+          options={[
+            { value: "students", label: `Students (${counts.students})` },
+            { value: "instructors", label: `Instructors (${counts.instructors})` },
+          ]}
+          onChange={(v) => {
+            setAudienceView(v);
+            setQuery("");
+            setOpenPersonId(null);
+          }}
         />
+        <div className="relative w-full sm:w-64">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={
+              forInstructorsView ? "Search instructors or notes" : "Search students or notes"
+            }
+            className="pl-9"
+            aria-label="Search notes"
+          />
+        </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {groups.length === 0 ? (
         <Card>
           <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-14 text-center text-sm">
             <NotebookPen className="text-muted-foreground/60 size-8" />
-            {notes.length === 0 ? "No notes sent yet." : "No notes match your search."}
+            {audienceNotes.length === 0
+              ? forInstructorsView
+                ? "No instructor-only notes sent yet."
+                : "No student notes sent yet."
+              : "No notes match your search."}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3">
-          {filtered.map((n) => {
-            const waHref = notifyHref(n);
-            return (
-              <Card key={n.id} className="transition-shadow hover:shadow-md">
-                <CardContent className="flex flex-wrap items-start justify-between gap-3 pt-6">
-                  <div className="min-w-0 flex-1">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {groups.map((g) => (
+            <PersonCard
+              key={g.id}
+              name={g.name}
+              count={g.notes.length}
+              latest={g.notes[0].createdAt}
+              onOpen={() => setOpenPersonId(g.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      <Dialog
+        open={!!openPersonId && openNotes.length > 0}
+        onOpenChange={(o) => !o && setOpenPersonId(null)}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{openGroup?.name ?? "Notes"}</DialogTitle>
+            <DialogDescription>
+              {openNotes.length} note{openNotes.length === 1 ? "" : "s"}
+              {forInstructorsView ? " · instructor only" : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            {[...openNotes]
+              .sort((x, y) => y.createdAt.localeCompare(x.createdAt))
+              .map((n) => {
+                const waHref = notifyHref(n);
+                return (
+                  <div key={n.id} className="rounded-lg border p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-semibold">{n.title || "(untitled note)"}</h3>
                       <Badge variant="secondary" className="font-normal">
                         {LESSON_TYPE_LABEL[n.lessonType]}
                       </Badge>
-                      {isInstructorNote(n) && (
-                        <Badge
-                          variant="outline"
-                          className="border-accent/40 bg-accent/15 text-accent-foreground gap-1 font-normal"
-                        >
-                          <UserCheck className="size-3" /> Instructor only
-                        </Badge>
-                      )}
                       <AttachmentBadge note={n} />
                     </div>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                      {recipientName(n)} · {fmtDate(n.createdAt)}
-                    </p>
+                    <p className="text-muted-foreground mt-1 text-sm">{fmtDate(n.createdAt)}</p>
                     {n.body && (
                       <p className="text-muted-foreground mt-2 line-clamp-2 text-sm whitespace-pre-line">
                         {n.body}
                       </p>
                     )}
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    {waHref ? (
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={waHref} target="_blank" rel="noreferrer">
-                          <MessageCircle className="size-4" /> Notify on WhatsApp
-                        </a>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {waHref ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={waHref} target="_blank" rel="noreferrer">
+                            <MessageCircle className="size-4" /> Notify on WhatsApp
+                          </a>
+                        </Button>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground font-normal">
+                          No phone on file
+                        </Badge>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPreviewNote(n)}
+                        aria-label="Preview note as the recipient sees it"
+                        title="Preview as the recipient sees it"
+                      >
+                        <Eye className="size-4" />
                       </Button>
-                    ) : (
-                      <Badge variant="outline" className="text-muted-foreground font-normal">
-                        No phone on file
-                      </Badge>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setPreviewNote(n)}
-                      aria-label="Preview note as the recipient sees it"
-                      title="Preview as the recipient sees it"
-                    >
-                      <Eye className="size-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => openEdit(n)}
-                      aria-label="Edit note"
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setDeleteTarget(n)}
-                      aria-label="Delete note"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => openEdit(n)}
+                        aria-label="Edit note"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setDeleteTarget(n)}
+                        aria-label="Delete note"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                );
+              })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <NoteComposer
+        key={composerKey}
+        defaultAudience={audienceView}
         open={composerOpen}
         onOpenChange={setComposerOpen}
         note={editing}
@@ -417,6 +537,7 @@ type NotePayload = {
 };
 
 function NoteComposer({
+  defaultAudience,
   open,
   onOpenChange,
   note,
@@ -424,6 +545,7 @@ function NoteComposer({
   instructors,
   onSave,
 }: {
+  defaultAudience: NoteAudience;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   note: StudentNote | null;
@@ -432,7 +554,7 @@ function NoteComposer({
   onSave: (payload: NotePayload) => void;
 }) {
   const noteAudience = (n: StudentNote | null): NoteAudience =>
-    n?.instructorId ? "instructors" : "students";
+    n ? (n.instructorId ? "instructors" : "students") : defaultAudience;
   const noteRecipient = (n: StudentNote | null) => (n ? [n.instructorId || n.studentId] : []);
   const [audience, setAudience] = useState<NoteAudience>(noteAudience(note));
   const [recipientIds, setRecipientIds] = useState<string[]>(noteRecipient(note));
