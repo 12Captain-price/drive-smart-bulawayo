@@ -16,6 +16,7 @@ import {
   FileSpreadsheet,
   FileText,
   GraduationCap,
+  KeyRound,
   HelpCircle,
   Image as ImageIcon,
   Inbox,
@@ -110,6 +111,8 @@ import {
   STUDENT_STATUSES,
   bookedSlotKeys,
   hasLegacyLocalInstructors,
+  instructorHasPin,
+  setInstructorPin,
   migrateLocalInstructorsToSupabase,
   renderTemplate,
   slotKey,
@@ -1452,7 +1455,7 @@ function InstructorCard({
               placeholder="e.g. 077XXXXXXX, needed for the Share button below"
             />
           </div>
-          <InstructorLoginInfo instructorName={ins.name} instructorPhone={ins.phone} />
+          <InstructorLoginInfo instructorId={ins.id} instructorName={ins.name} instructorPhone={ins.phone} />
           <div className="flex gap-2 sm:col-span-2">
             <Button size="sm" onClick={() => toast.success("Instructor saved")}>
               Save
@@ -1468,51 +1471,113 @@ function InstructorCard({
   );
 }
 
-/** How this instructor signs in at /my-lessons: their full name plus the last
- *  4 digits of the WhatsApp number saved above — the same check students use.
- *  There is no PIN to set or remember; changing the number changes the login. */
+/** How this instructor signs in at /my-lessons: their full name plus a PIN that
+ *  the admin sets here. Never name + phone alone. The PIN is stored hashed, so
+ *  it can't be read back later: set a new one if it's forgotten. */
 function InstructorLoginInfo({
+  instructorId,
   instructorName,
   instructorPhone,
 }: {
+  instructorId: string;
   instructorName: string;
   instructorPhone?: string;
 }) {
-  const digits = (instructorPhone ?? "").replace(/\D/g, "");
-  const last4 = digits.length >= 4 ? digits.slice(-4) : "";
-  const message = `Hi ${instructorName}, here's how to check your Auto Driving School schedule and notes:\n${origin()}/my-lessons\nChoose "I'm an instructor", then enter your full name and the last 4 digits of this phone number.`;
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [pin, setPin] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [justSet, setJustSet] = useState("");
+  const hasPhone = (instructorPhone ?? "").replace(/\D/g, "").length >= 4;
+
+  useEffect(() => {
+    let alive = true;
+    instructorHasPin(instructorId)
+      .then((v) => alive && setHasPin(v))
+      .catch(() => alive && setHasPin(null));
+    return () => {
+      alive = false;
+    };
+  }, [instructorId]);
+
+  async function save() {
+    if (!/^\d{4,6}$/.test(pin)) {
+      toast.error("The PIN must be 4 to 6 digits");
+      return;
+    }
+    setSaving(true);
+    try {
+      await setInstructorPin(instructorId, pin);
+      setHasPin(true);
+      setJustSet(pin);
+      setPin("");
+      toast.success(hasPin ? "PIN changed" : "PIN set");
+    } catch (err) {
+      toast.error(errorMessage(err, "Couldn't save the PIN"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const message = `Hi ${instructorName}, here's how to check your Auto Driving School schedule and notes:\n${origin()}/my-lessons\nChoose "I'm an instructor", then enter your full name${justSet ? ` and your PIN: ${justSet}` : " and the PIN the school gave you"}.`;
 
   return (
     <div className="grid gap-2 sm:col-span-2">
       <div className="flex items-center gap-2">
         <Label>My Lessons login</Label>
-        {last4 ? (
+        {hasPin ? (
           <Badge variant="secondary" className="text-xs">
-            Ready · ends in {last4}
+            PIN set
           </Badge>
         ) : (
           <Badge variant="outline" className="text-xs">
-            Add a WhatsApp number
+            No PIN yet, can't sign in
           </Badge>
         )}
       </div>
       <p className="text-muted-foreground text-xs">
-        {last4
-          ? `${instructorName} signs in with their full name and the last 4 digits of the WhatsApp number above (${last4}). No PIN needed.`
-          : "Instructors sign in with their full name and the last 4 digits of the WhatsApp number saved here, so add a number above first."}
+        {instructorName} signs in with their full name and the PIN you set here. The PIN can't be
+        shown again once saved, so set a new one if it's forgotten.
+        {!hasPhone && " Add a WhatsApp number above too, the schedule lookup needs it on file."}
       </p>
-      {last4 &&
-        (instructorPhone ? (
-          <Button
-            size="sm"
-            className="bg-success text-success-foreground hover:bg-success/90 w-fit"
-            asChild
-          >
-            <a href={waLink(instructorPhone, message)} target="_blank" rel="noreferrer">
-              <MessageCircle className="size-4" /> Send login instructions on WhatsApp
-            </a>
-          </Button>
-        ) : null)}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="4 to 6 digits"
+          className="w-40"
+          aria-label={`PIN for ${instructorName}`}
+        />
+        <Button size="sm" disabled={saving || pin.length < 4} onClick={save}>
+          <KeyRound className="size-4" /> {hasPin ? "Change PIN" : "Set PIN"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          type="button"
+          onClick={() => setPin(String(Math.floor(1000 + Math.random() * 9000)))}
+        >
+          Suggest a PIN
+        </Button>
+      </div>
+      {hasPin && instructorPhone ? (
+        <Button
+          size="sm"
+          className="bg-success text-success-foreground hover:bg-success/90 w-fit"
+          asChild
+        >
+          <a href={waLink(instructorPhone, message)} target="_blank" rel="noreferrer">
+            <MessageCircle className="size-4" /> Send login instructions on WhatsApp
+          </a>
+        </Button>
+      ) : null}
+      {justSet && (
+        <p className="text-muted-foreground text-xs">
+          PIN {justSet} saved. It's included in the WhatsApp message above until you leave this
+          page.
+        </p>
+      )}
     </div>
   );
 }

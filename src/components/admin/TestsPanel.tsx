@@ -9,6 +9,7 @@ import {
   Copy,
   Eye,
   FileText,
+  FileDown,
   ListChecks,
   Loader2,
   Plus,
@@ -23,6 +24,7 @@ import {
   RotateCcw,
   ZoomIn,
 } from "lucide-react";
+import { buildRevisionPdf, missedQuestions } from "@/lib/revisionPdf";
 import { PdfPaper } from "@/components/site/PdfPaper";
 import { WordPaper } from "@/components/site/WordPaper";
 import { ProtectedContent } from "@/components/site/ProtectedContent";
@@ -2695,6 +2697,67 @@ function SubmissionCard({
       setPdfMatchState("error");
     }
   }
+  // "Send summary": a read-only revision PDF (missed questions + diagrams +
+  // the student's answer + the correct answer), uploaded to Storage so it can
+  // be sent as a WhatsApp link (wa.me links can't attach files).
+  const [summaryBusy, setSummaryBusy] = useState(false);
+  const [summaryUrl, setSummaryUrl] = useState<string>("");
+  async function sendSummary() {
+    if (!test || test.type !== "mcq") return;
+    // Open the tab synchronously so the browser doesn't treat it as a popup
+    // after the async PDF build.
+    const tab = window.open("", "_blank");
+    setSummaryBusy(true);
+    try {
+      let url = summaryUrl;
+      let blob: Blob | null = null;
+      if (!url) {
+        blob = await buildRevisionPdf({
+          schoolName: "Auto Driving School",
+          testTitle: test.title,
+          studentName: student?.name ?? "Student",
+          mark: sub.mark ?? (auto ? `${auto.score}/${auto.total}` : undefined),
+          writtenOn: new Date(sub.submittedAt).toLocaleDateString(),
+          questions: test.questions,
+          answers: sub.answers,
+        });
+        const safeName = (student?.name ?? "student").replace(/[^a-z0-9]+/gi, "-");
+        const file = new File([blob], `revision-${safeName}.pdf`, { type: "application/pdf" });
+        try {
+          url = await uploadTestFileToStorage(file);
+          setSummaryUrl(url);
+        } catch (err) {
+          // Couldn't host it: hand the admin the file so they can attach it by hand.
+          console.error("Summary upload failed:", err);
+          tab?.close();
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = file.name;
+          a.click();
+          toast.error("Couldn't create a link, so the PDF was downloaded. Attach it in WhatsApp.");
+          return;
+        }
+      }
+      const text = [
+        `Hi ${student?.name ?? ""}, here is your revision summary for ${test.title}.`,
+        "It shows the questions you missed, with the correct answers and diagrams.",
+        url,
+      ].join("\n");
+      const wa = waLink(student?.phone || settings.whatsapp, text);
+      if (tab) tab.location.href = wa;
+      else {
+        copy(url);
+        toast.message("Pop-up blocked, summary link copied instead");
+      }
+    } catch (err) {
+      tab?.close();
+      toast.error(errorMessage(err, "Couldn't build the summary"));
+    } finally {
+      setSummaryBusy(false);
+    }
+  }
+  const summaryCount =
+    test?.type === "mcq" ? missedQuestions(test.questions, sub.answers).length : 0;
   const resultsLink = assignment?.resultsToken
     ? `${origin()}/results/${assignment.resultsToken}`
     : "";
@@ -3079,6 +3142,23 @@ function SubmissionCard({
                   </a>
                 </Button>
               </>
+            )}
+            {test?.type === "mcq" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={summaryBusy}
+                onClick={sendSummary}
+                title="Sends a read-only PDF of the questions they missed, with correct answers and diagrams"
+              >
+                {summaryBusy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <FileDown className="size-4" />
+                )}{" "}
+                Send summary{summaryCount > 0 ? ` (${summaryCount})` : ""}
+              </Button>
             )}
           </div>
           {!resultsLink && (

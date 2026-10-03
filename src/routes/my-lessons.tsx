@@ -1113,7 +1113,7 @@ function InstructorHome({
 
 function InstructorLookup({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ instructorName: string; lessons: MyLesson[] } | null>(
@@ -1126,16 +1126,16 @@ function InstructorLookup({ onBack }: { onBack: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetchMyLessonsAsInstructor(name, phone);
+      const r = await fetchMyLessonsAsInstructor(name, pin);
       if (!r) {
         setError(
-          "Those details don't match. Check your name and phone number, or ask the school to confirm the number saved on your profile.",
+          "Those details don't match. Check your name and PIN, or ask the school to reset your PIN.",
         );
         setResult(null);
       } else {
         setResult(r);
         // Best-effort — a hiccup fetching notes shouldn't block the schedule.
-        fetchMyNotesAsInstructor(name, phone)
+        fetchMyNotesAsInstructor(name, pin)
           .then((n) => setNotes(n?.notes ?? []))
           .catch(() => {});
       }
@@ -1148,12 +1148,12 @@ function InstructorLookup({ onBack }: { onBack: () => void }) {
 
   useLiveRefresh(
     !!result,
-    () => fetchMyLessonsAsInstructor(name, phone),
+    () => fetchMyLessonsAsInstructor(name, pin),
     (r) => setResult(r),
   );
   useLiveRefresh(
     !!result,
-    () => fetchMyNotesAsInstructor(name, phone),
+    () => fetchMyNotesAsInstructor(name, pin),
     (n) => setNotes(n?.notes ?? []),
   );
 
@@ -1180,7 +1180,7 @@ function InstructorLookup({ onBack }: { onBack: () => void }) {
             icon={Car}
             tone="instructor"
             title="Instructor sign-in"
-            subtitle="Use your name and the phone number the school has on file for you."
+            subtitle="Use your full name and the PIN the school gave you."
           />
           <form onSubmit={submit} className="space-y-4">
             <div className="grid gap-2">
@@ -1193,13 +1193,15 @@ function InstructorLookup({ onBack }: { onBack: () => void }) {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="instructor-phone">Last 4 digits of your phone number</Label>
+              <Label htmlFor="instructor-pin">Your PIN</Label>
               <Input
-                id="instructor-phone"
+                id="instructor-pin"
+                type="password"
+                autoComplete="off"
                 inputMode="numeric"
-                maxLength={4}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                maxLength={6}
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                 required
               />
             </div>

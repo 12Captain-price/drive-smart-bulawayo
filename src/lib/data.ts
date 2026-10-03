@@ -2052,19 +2052,37 @@ export async function fetchMyLessonsAsStudent(
   return (data as { studentName: string; lessons: MyLesson[] } | null) ?? null;
 }
 
-/** Returns null when the name/phone don't match any instructor. Same
- *  name + last-4-of-phone check as the student lookup (the number is the one
- *  saved on the instructor's profile). */
+/** Instructors sign in with their full name + the PIN the admin set for them.
+ *  Returns null when the name/PIN don't match. (The old name + phone-last-4
+ *  lookup is switched off in the database, see supabase/instructor-pin.sql.) */
 export async function fetchMyLessonsAsInstructor(
   name: string,
-  phoneLast4: string,
+  pin: string,
 ): Promise<{ instructorName: string; lessons: MyLesson[] } | null> {
-  const { data, error } = await (supabase as any).rpc("get_my_lessons_instructor_phone", {
+  const { data, error } = await (supabase as any).rpc("get_my_lessons_instructor_pin", {
     p_name: name,
-    p_phone_last4: phoneLast4,
+    p_pin: pin,
   });
   if (error) throw error;
   return (data as { instructorName: string; lessons: MyLesson[] } | null) ?? null;
+}
+
+/** Admin: does this instructor have a PIN yet? */
+export async function instructorHasPin(instructorId: string): Promise<boolean> {
+  const { data, error } = await (supabase as any).rpc("instructor_has_pin", {
+    p_instructor_id: instructorId,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/** Admin: set or reset an instructor's PIN (4 to 6 digits). Stored hashed. */
+export async function setInstructorPin(instructorId: string, pin: string): Promise<void> {
+  const { error } = await (supabase as any).rpc("set_instructor_pin", {
+    p_instructor_id: instructorId,
+    p_pin: pin,
+  });
+  if (error) throw error;
 }
 
 function studentFromRow(row: any): Student {
@@ -3012,19 +3030,19 @@ export async function fetchMyNotesAsStudent(
 
 /**
  * Instructor side — notes sent to one instructor only. Same shape of lookup
- * as the student one (name + last 4 of the phone saved on their profile) and
+ * as the student one (name + the PIN the admin set) and
  * the same rule: it goes through a security-definer RPC
- * (get_my_notes_instructor), never a direct table read, so an instructor can
+ * (get_my_notes_instructor_pin), never a direct table read, so an instructor can
  * only ever see their own notes — never a student's, never another
- * instructor's. Returns null when the name/phone don't match.
+ * instructor's. Returns null when the name/PIN don't match.
  */
 export async function fetchMyNotesAsInstructor(
   name: string,
-  phoneLast4: string,
+  pin: string,
 ): Promise<{ instructorName: string; notes: StudentNote[] } | null> {
-  const { data, error } = await (supabase as any).rpc("get_my_notes_instructor", {
+  const { data, error } = await (supabase as any).rpc("get_my_notes_instructor_pin", {
     p_name: name,
-    p_phone_last4: phoneLast4,
+    p_pin: pin,
   });
   if (error) throw error;
   if (!data) return null;
