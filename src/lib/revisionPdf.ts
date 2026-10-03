@@ -47,7 +47,7 @@ export function missedQuestions(q: Question[], answers: Record<string, number | 
 }
 
 export async function buildRevisionPdf(input: RevisionPdfInput): Promise<Blob> {
-  const { jsPDF } = await import("jspdf");
+  const { jsPDF } = await import("jspdf/dist/jspdf.es.min.js");
 
   // userPermissions without "modify"/"copy" = view and print only.
   const doc = new jsPDF({
