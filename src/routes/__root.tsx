@@ -96,8 +96,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:title", content: "Auto Driving School | Driving Lessons in Bulawayo" },
       { property: "og:description", content: "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages." },
       { name: "twitter:description", content: "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7cc5ea2d-972a-40b7-9535-916a99bea3f2/id-preview-5c4a5017--c52d3735-1de2-48c6-8736-887b32e47e4b.lovable.app-1785139368715.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7cc5ea2d-972a-40b7-9535-916a99bea3f2/id-preview-5c4a5017--c52d3735-1de2-48c6-8736-887b32e47e4b.lovable.app-1785139368715.png" },
+      { property: "og:image", content: "https://autodrivingschools.org/og-banner.jpg" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "675" },
+      { property: "og:image:alt", content: "Auto Driving School: Learn. Drive. Achieve." },
+      { name: "twitter:image", content: "https://autodrivingschools.org/og-banner.jpg" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

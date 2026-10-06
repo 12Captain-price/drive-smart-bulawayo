@@ -68,7 +68,7 @@ export const Route = createFileRoute("/test/$token")({
         content: "Private test link for Auto Driving School learners.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
 });
