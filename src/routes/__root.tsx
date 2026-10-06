@@ -24,10 +24,15 @@ function NotFoundComponent() {
     <div className="flex min-h-[70vh] items-center justify-center px-4">
       <div className="max-w-md text-center">
         <p className="label-mono text-accent">Error 404</p>
-        <h1 className="mt-3 text-4xl font-bold">Wrong turn</h1>
+
+        <h1 className="mt-3 text-4xl font-bold">
+          Wrong turn
+        </h1>
+
         <p className="text-muted-foreground mt-3 text-sm">
           That page doesn't exist. Let's get you back on the road.
         </p>
+
         <Link
           to="/"
           className="bg-primary text-primary-foreground hover:bg-primary/90 mt-6 inline-flex items-center justify-center rounded-md px-5 py-2.5 text-sm font-medium transition-colors"
@@ -39,20 +44,34 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({
+  error,
+  reset,
+}: {
+  error: Error;
+  reset: () => void;
+}) {
   console.error(error);
+
   const router = useRouter();
+
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    reportLovableError(error, {
+      boundary: "tanstack_root_error_component",
+    });
   }, [error]);
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight">This page didn't load</h1>
+        <h1 className="text-xl font-semibold tracking-tight">
+          This page didn't load
+        </h1>
+
         <p className="text-muted-foreground mt-2 text-sm">
           Something went wrong on our end. Try refreshing or head back home.
         </p>
+
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -63,6 +82,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           >
             Try again
           </button>
+
           <a
             href="/"
             className="border-input hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium transition-colors"
@@ -75,57 +95,192 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Auto Driving School | Driving Lessons in Bulawayo" },
-      {
-        name: "description",
-        content:
-          "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages.",
-      },
-      { name: "robots", content: "index, follow" },
-      { name: "author", content: "Auto Driving School" },
-      { property: "og:site_name", content: "Auto Driving School" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "theme-color", content: "#12256b" },
-      { property: "og:title", content: "Auto Driving School | Driving Lessons in Bulawayo" },
-      { name: "twitter:title", content: "Auto Driving School | Driving Lessons in Bulawayo" },
-      { property: "og:description", content: "Driving lessons in Bulawayo. TSCZ-registered instructors and dual-control cars." },
-      { name: "twitter:description", content: "Driving lessons in Bulawayo. TSCZ-registered instructors and dual-control cars." },
-      { property: "og:image", content: "https://autodrivingschools.org/og-banner-v2.jpg" },
-      { property: "og:image:alt", content: "Auto Driving School: Learn. Drive. Achieve." },
-      { name: "twitter:image", content: "https://autodrivingschools.org/og-banner-v2.jpg" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap",
-      },
-      { rel: "icon", href: "/favicon.png", type: "image/png" },
-      { rel: "apple-touch-icon", href: "/logo.png" },
-    ],
-  }),
-  shellComponent: RootShell,
-  component: RootComponent,
-  notFoundComponent: NotFoundComponent,
-  errorComponent: ErrorComponent,
-});
+export const Route =
+  createRootRouteWithContext<{ queryClient: QueryClient }>()({
+    head: () => ({
+      meta: [
+        // Basic SEO
+        {
+          charSet: "utf-8",
+        },
 
-function RootShell({ children }: { children: ReactNode }) {
+        {
+          name: "viewport",
+          content: "width=device-width, initial-scale=1",
+        },
+
+        {
+          title:
+            "Auto Driving School | Driving Lessons in Bulawayo",
+        },
+
+        {
+          name: "description",
+          content:
+            "Learn to drive in Bulawayo with Auto Driving School: TSCZ-registered instructors, dual-control cars, beginner, full course and refresher packages.",
+        },
+
+        {
+          name: "robots",
+          content: "index, follow",
+        },
+
+        {
+          name: "author",
+          content: "Auto Driving School",
+        },
+
+        // ================================
+        // OPEN GRAPH / WHATSAPP / FACEBOOK
+        // ================================
+
+        {
+          property: "og:site_name",
+          content: "Auto Driving School",
+        },
+
+        {
+          property: "og:type",
+          content: "website",
+        },
+
+        {
+          property: "og:title",
+          content:
+            "Auto Driving School: Driving Lessons in Bulawayo",
+        },
+
+        {
+          property: "og:description",
+          content:
+            "Learn to drive in Bulawayo with Auto Driving School. TSCZ-registered instructors, dual-control cars, beginner, full course and refresher lessons.",
+        },
+
+        {
+          property: "og:image",
+          content:
+            "https://autodrivingschools.org/og-banner-v3.png",
+        },
+
+        {
+          property: "og:image:width",
+          content: "1200",
+        },
+
+        {
+          property: "og:image:height",
+          content: "630",
+        },
+
+        {
+          property: "og:image:type",
+          content: "image/png",
+        },
+
+        {
+          property: "og:image:alt",
+          content:
+            "Auto Driving School - Driving Lessons in Bulawayo",
+        },
+
+        {
+          property: "og:url",
+          content: "https://autodrivingschools.org/",
+        },
+
+        // ================================
+        // TWITTER / X
+        // ================================
+
+        {
+          name: "twitter:card",
+          content: "summary_large_image",
+        },
+
+        {
+          name: "twitter:title",
+          content:
+            "Auto Driving School: Driving Lessons in Bulawayo",
+        },
+
+        {
+          name: "twitter:description",
+          content:
+            "Learn to drive in Bulawayo with Auto Driving School. TSCZ-registered instructors, dual-control cars, beginner, full course and refresher lessons.",
+        },
+
+        {
+          name: "twitter:image",
+          content:
+            "https://autodrivingschools.org/og-banner-v3.png",
+        },
+
+        // Theme
+        {
+          name: "theme-color",
+          content: "#12256b",
+        },
+      ],
+
+      links: [
+        {
+          rel: "stylesheet",
+          href: appCss,
+        },
+
+        {
+          rel: "preconnect",
+          href: "https://fonts.googleapis.com",
+        },
+
+        {
+          rel: "preconnect",
+          href: "https://fonts.gstatic.com",
+          crossOrigin: "anonymous",
+        },
+
+        {
+          rel: "stylesheet",
+          href:
+            "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap",
+        },
+
+        {
+          rel: "icon",
+          href: "/favicon.png",
+          type: "image/png",
+        },
+
+        {
+          rel: "apple-touch-icon",
+          href: "/logo.png",
+        },
+      ],
+    }),
+
+    shellComponent: RootShell,
+
+    component: RootComponent,
+
+    notFoundComponent: NotFoundComponent,
+
+    errorComponent: ErrorComponent,
+  });
+
+function RootShell({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
+
       <body>
         {children}
+
         <Scripts />
       </body>
     </html>
@@ -134,12 +289,20 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
   const isMobile = useIsMobile();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  const pathname = useRouterState({
+    select: (s) => s.location.pathname,
+  });
 
   useEffect(() => {
     const stored = localStorage.getItem("ads.theme");
-    document.documentElement.classList.toggle("dark", stored === "dark");
+
+    document.documentElement.classList.toggle(
+      "dark",
+      stored === "dark"
+    );
   }, []);
 
   useEffect(() => {
@@ -150,18 +313,26 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-screen flex-col">
         <Header />
+
         <main className="flex-1">
           {/* Required: nested routes render here. */}
           <Outlet />
         </main>
+
         <Footer />
       </div>
+
       <WhatsAppFab />
+
       <Toaster
         position={isMobile ? "top-center" : "top-right"}
         richColors
         closeButton
-        toastOptions={{ style: { borderRadius: "var(--radius)" } }}
+        toastOptions={{
+          style: {
+            borderRadius: "var(--radius)",
+          },
+        }}
       />
     </QueryClientProvider>
   );
