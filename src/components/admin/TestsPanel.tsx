@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -401,6 +407,161 @@ function MultiSearchPicker({
   );
 }
 
+/* ------------------------ sorting & grouping helpers ------------------------ */
+
+/** First number found in a test title ("Paper 4" -> 4), or null when there is none. */
+function testNumber(title: string): number | null {
+  const m = title.match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
+
+/** Lowest test number first; titles without a number go last, then A–Z. */
+function compareTestsByNumber(a: Test, b: Test): number {
+  const na = testNumber(a.title);
+  const nb = testNumber(b.title);
+  if (na !== null && nb !== null && na !== nb) return na - nb;
+  if (na !== null && nb === null) return -1;
+  if (na === null && nb !== null) return 1;
+  return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: "base" });
+}
+
+type BankSort = "newest" | "number-asc" | "number-desc";
+const BANK_SORT_KEY = "admin-test-bank-sort";
+const BANK_SORT_OPTIONS: { value: BankSort; label: string }[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "number-asc", label: "Test number: low to high" },
+  { value: "number-desc", label: "Test number: high to low" },
+];
+
+interface StudentGroupData<T> {
+  key: string;
+  name: string;
+  rows: T[];
+}
+
+/** Buckets rows under their student. Students A–Z, unknown/deleted students last. */
+function groupByStudent<T>(
+  rows: T[],
+  getStudentId: (row: T) => string | undefined,
+  students: Student[],
+): StudentGroupData<T>[] {
+  const map = new Map<string, StudentGroupData<T>>();
+  for (const row of rows) {
+    const student = students.find((x) => x.id === getStudentId(row));
+    const key = student ? student.id : "unknown";
+    let group = map.get(key);
+    if (!group) {
+      group = { key, name: student?.name ?? "Unknown student", rows: [] };
+      map.set(key, group);
+    }
+    group.rows.push(row);
+  }
+  return [...map.values()].sort((a, b) => {
+    if (a.key === "unknown") return 1;
+    if (b.key === "unknown") return -1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
+}
+
+/** Open/closed state for the student groups. A search opens everything so matches are visible. */
+function useGroupOpen(searching: boolean) {
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  return {
+    isOpen: (key: string, fallback: boolean) => searching || (overrides[key] ?? fallback),
+    toggle: (key: string, current: boolean) => setOverrides((o) => ({ ...o, [key]: !current })),
+    setAll: (keys: string[], value: boolean) =>
+      setOverrides(Object.fromEntries(keys.map((k) => [k, value]))),
+    openOne: (key: string) => setOverrides((o) => ({ ...o, [key]: true })),
+  };
+}
+
+type GroupMode = "student" | "list";
+
+function GroupControls({
+  mode,
+  onMode,
+  onOpenAll,
+  onCloseAll,
+}: {
+  mode: GroupMode;
+  onMode: (m: GroupMode) => void;
+  onOpenAll: () => void;
+  onCloseAll: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ChipGroup
+        ariaLabel="How to list tests"
+        size="sm"
+        value={mode}
+        onChange={onMode}
+        options={[
+          { value: "student", label: "Group by student" },
+          { value: "list", label: "One long list" },
+        ]}
+      />
+      {mode === "student" && (
+        <>
+          <Button type="button" variant="ghost" size="sm" onClick={onOpenAll}>
+            Open all
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onCloseAll}>
+            Close all
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StudentGroup({
+  name,
+  count,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  name: string;
+  count: number;
+  summary?: ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="bg-secondary/50 hover:bg-secondary flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors"
+      >
+        <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full">
+          <Users className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{name}</span>
+          <span className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs">
+            <span>
+              {count} test{count === 1 ? "" : "s"}
+            </span>
+            {summary}
+          </span>
+        </span>
+        {open ? (
+          <ChevronUp className="text-muted-foreground size-4 shrink-0" />
+        ) : (
+          <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+        )}
+      </button>
+      {open && (
+        <div className="border-primary/20 space-y-3 border-l-2 pl-3 sm:pl-4">{children}</div>
+      )}
+    </div>
+  );
+}
+
 /* --------------------------------- test bank -------------------------------- */
 
 export function TestsPanel() {
@@ -408,12 +569,42 @@ export function TestsPanel() {
   const [tab, setTab] = useState<"bank" | "assign" | "grade">("bank");
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [bankQuery, setBankQuery] = useState("");
+  const [bankSort, setBankSort] = useState<BankSort>("newest");
+
+  // Remember the chosen order between visits (read after mount so the server
+  // and browser render the same thing first).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(BANK_SORT_KEY);
+      if (saved === "newest" || saved === "number-asc" || saved === "number-desc") {
+        setBankSort(saved);
+      }
+    } catch {
+      /* storage unavailable, keep the default */
+    }
+  }, []);
+
+  function chooseBankSort(v: BankSort) {
+    setBankSort(v);
+    try {
+      window.localStorage.setItem(BANK_SORT_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const visibleTests = useMemo(() => {
     const q = bankQuery.trim().toLowerCase();
-    if (!q) return tests;
-    return tests.filter((t) => t.title.toLowerCase().includes(q));
-  }, [tests, bankQuery]);
+    let list = q ? tests.filter((t) => t.title.toLowerCase().includes(q)) : [...tests];
+    if (bankSort === "number-asc") list.sort(compareTestsByNumber);
+    else if (bankSort === "number-desc") list.sort((a, b) => compareTestsByNumber(b, a));
+    // A test that was just added stays at the top so it can be named straight away.
+    if (justCreatedId) {
+      const fresh = list.find((t) => t.id === justCreatedId);
+      if (fresh) list = [fresh, ...list.filter((t) => t.id !== justCreatedId)];
+    }
+    return list;
+  }, [tests, bankQuery, bankSort, justCreatedId]);
 
   return (
     <div className="space-y-5">
@@ -459,6 +650,19 @@ export function TestsPanel() {
               </div>
             )}
           </div>
+
+          {tests.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground text-sm">Order:</span>
+              <ChipGroup
+                ariaLabel="Order the test bank"
+                size="sm"
+                value={bankSort}
+                onChange={chooseBankSort}
+                options={BANK_SORT_OPTIONS}
+              />
+            </div>
+          )}
 
           {tests.length === 0 && (
             <p className="text-muted-foreground text-sm">
@@ -1985,6 +2189,7 @@ function AssignPanel() {
   const [studentIds, setStudentIds] = useState<string[]>([]);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [listQuery, setListQuery] = useState("");
+  const [groupMode, setGroupMode] = useState<GroupMode>("student");
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<{
     duplicates: Student[];
@@ -1992,6 +2197,7 @@ function AssignPanel() {
   } | null>(null);
 
   const test = tests.find((t) => t.id === testId);
+  const groupOpen = useGroupOpen(listQuery.trim() !== "");
 
   // Picking a test fills in its default time, which can then be changed for
   // this send-out.
@@ -2020,6 +2226,20 @@ function AssignPanel() {
       return s?.name.toLowerCase().includes(q) || t?.title.toLowerCase().includes(q);
     });
   }, [assignments, listQuery, students, tests]);
+
+  const assignGroups = useMemo(() => {
+    const groups = groupByStudent(filteredAssignments, (a) => a.studentId, students);
+    // Inside a student: lowest test number first, so their tests read in order.
+    for (const g of groups) {
+      g.rows = [...g.rows].sort((a, b) => {
+        const ta = tests.find((x) => x.id === a.testId);
+        const tb = tests.find((x) => x.id === b.testId);
+        if (ta && tb) return compareTestsByNumber(ta, tb);
+        return 0;
+      });
+    }
+    return groups;
+  }, [filteredAssignments, students, tests]);
 
   function hasUnfinished(studentId: string, testIdToCheck: string) {
     return assignments.some(
@@ -2054,6 +2274,7 @@ function AssignPanel() {
           })),
         );
         setJustCreatedId(created[0]?.id ?? null);
+        if (created[0]) groupOpen.openOne(created[0].studentId);
         setStudentIds([]);
       },
       targets.length > 1 ? `Test link created for ${targets.length} students` : "Test link created",
@@ -2264,18 +2485,85 @@ function AssignPanel() {
         <p className="text-muted-foreground text-sm">No assigned tests match "{listQuery}".</p>
       )}
 
-      {filteredAssignments.map((a) => (
-        <AssignmentCard
-          key={a.id}
-          assignment={a}
-          test={tests.find((x) => x.id === a.testId)}
-          student={students.find((x) => x.id === a.studentId)}
-          settings={settings}
-          update={update}
-          remove={remove}
-          defaultOpen={a.id === justCreatedId}
+      {assignments.length > 1 && filteredAssignments.length > 0 && (
+        <GroupControls
+          mode={groupMode}
+          onMode={setGroupMode}
+          onOpenAll={() =>
+            groupOpen.setAll(
+              assignGroups.map((g) => g.key),
+              true,
+            )
+          }
+          onCloseAll={() =>
+            groupOpen.setAll(
+              assignGroups.map((g) => g.key),
+              false,
+            )
+          }
         />
-      ))}
+      )}
+
+      {groupMode === "list" &&
+        filteredAssignments.map((a) => (
+          <AssignmentCard
+            key={a.id}
+            assignment={a}
+            test={tests.find((x) => x.id === a.testId)}
+            student={students.find((x) => x.id === a.studentId)}
+            settings={settings}
+            update={update}
+            remove={remove}
+            defaultOpen={a.id === justCreatedId}
+          />
+        ))}
+
+      {groupMode === "student" &&
+        assignGroups.map((g) => {
+          const open = groupOpen.isOpen(g.key, assignGroups.length === 1);
+          const pending = g.rows.filter(
+            (a) => a.status === "not-started" || a.status === "in-progress",
+          ).length;
+          const done = g.rows.filter((a) => a.status === "submitted").length;
+          return (
+            <StudentGroup
+              key={g.key}
+              name={g.name}
+              count={g.rows.length}
+              open={open}
+              onToggle={() => groupOpen.toggle(g.key, open)}
+              summary={
+                <>
+                  {pending > 0 && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span className="text-accent font-medium">{pending} waiting</span>
+                    </>
+                  )}
+                  {done > 0 && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span className="text-success font-medium">{done} submitted</span>
+                    </>
+                  )}
+                </>
+              }
+            >
+              {g.rows.map((a) => (
+                <AssignmentCard
+                  key={a.id}
+                  assignment={a}
+                  test={tests.find((x) => x.id === a.testId)}
+                  student={students.find((x) => x.id === a.studentId)}
+                  settings={settings}
+                  update={update}
+                  remove={remove}
+                  defaultOpen={a.id === justCreatedId}
+                />
+              ))}
+            </StudentGroup>
+          );
+        })}
     </div>
   );
 }
@@ -2595,10 +2883,40 @@ function GradePanel() {
     });
   }, [submissions, tests, students, assignments]);
 
+  const [gradeQuery, setGradeQuery] = useState("");
+  const [groupMode, setGroupMode] = useState<GroupMode>("student");
+  const groupOpen = useGroupOpen(gradeQuery.trim() !== "");
+
+  const filteredRows = useMemo(() => {
+    const q = gradeQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (r) => r.student?.name.toLowerCase().includes(q) || r.test?.title.toLowerCase().includes(q),
+    );
+  }, [rows, gradeQuery]);
+
+  const gradeGroups = useMemo(
+    () => groupByStudent(filteredRows, (r) => r.sub.studentId, students),
+    [filteredRows, students],
+  );
+
   const needsGrading = rows.filter((r) => !r.sub.mark).length;
 
   if (rows.length === 0)
     return <p className="text-muted-foreground text-sm">No tests have been written yet.</p>;
+
+  const renderRow = ({ sub, test, student, assignment }: (typeof rows)[number]) => (
+    <SubmissionCard
+      key={sub.id}
+      submission={sub}
+      test={test}
+      student={student}
+      assignment={assignment}
+      settings={settings}
+      update={update}
+      updateAssignment={updateAssignment}
+    />
+  );
 
   return (
     <div className="space-y-4">
@@ -2615,18 +2933,71 @@ function GradePanel() {
           </>
         )}
       </p>
-      {rows.map(({ sub, test, student, assignment }) => (
-        <SubmissionCard
-          key={sub.id}
-          submission={sub}
-          test={test}
-          student={student}
-          assignment={assignment}
-          settings={settings}
-          update={update}
-          updateAssignment={updateAssignment}
+
+      {rows.length > 6 && (
+        <div className="relative">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Input
+            value={gradeQuery}
+            onChange={(e) => setGradeQuery(e.target.value)}
+            placeholder="Search by student or test…"
+            className="pl-9"
+          />
+        </div>
+      )}
+
+      {filteredRows.length === 0 && (
+        <p className="text-muted-foreground text-sm">No written tests match "{gradeQuery}".</p>
+      )}
+
+      {filteredRows.length > 0 && (
+        <GroupControls
+          mode={groupMode}
+          onMode={setGroupMode}
+          onOpenAll={() =>
+            groupOpen.setAll(
+              gradeGroups.map((g) => g.key),
+              true,
+            )
+          }
+          onCloseAll={() =>
+            groupOpen.setAll(
+              gradeGroups.map((g) => g.key),
+              false,
+            )
+          }
         />
-      ))}
+      )}
+
+      {groupMode === "list" && filteredRows.map(renderRow)}
+
+      {groupMode === "student" &&
+        gradeGroups.map((g) => {
+          const waiting = g.rows.filter((r) => !r.sub.mark).length;
+          // Students with something waiting to be marked start open.
+          const open = groupOpen.isOpen(g.key, waiting > 0 || gradeGroups.length === 1);
+          return (
+            <StudentGroup
+              key={g.key}
+              name={g.name}
+              count={g.rows.length}
+              open={open}
+              onToggle={() => groupOpen.toggle(g.key, open)}
+              summary={
+                <>
+                  <span aria-hidden>·</span>
+                  {waiting > 0 ? (
+                    <span className="text-accent font-medium">{waiting} need grading</span>
+                  ) : (
+                    <span className="text-success font-medium">All marked</span>
+                  )}
+                </>
+              }
+            >
+              {g.rows.map(renderRow)}
+            </StudentGroup>
+          );
+        })}
     </div>
   );
 }
