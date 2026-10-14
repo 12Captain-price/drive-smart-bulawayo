@@ -31,7 +31,13 @@ import { ProtectedContent } from "@/components/site/ProtectedContent";
 import { isDocxFile, extractDocxText } from "@/lib/docx";
 import { importDocxToDraftQuestions } from "@/lib/docxImport";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { extractPdfText, matchPdfAnswers, parseNumberedAnswers, extractDesignator, type PdfMatchResult } from "@/lib/pdfMatch";
+import {
+  extractPdfText,
+  matchPdfAnswers,
+  parseNumberedAnswers,
+  extractDesignator,
+  type PdfMatchResult,
+} from "@/lib/pdfMatch";
 import {
   importPdfToDraftQuestions,
   readFileAsDataUrl,
@@ -558,9 +564,12 @@ function TestEditor({
   async function uploadQuestionImage(file: File | undefined, questionId: string) {
     if (!file) return;
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      toast.error(`${file.name} isn't an image — use JPG, PNG or WEBP (PDFs can't be shown as a photo).`, {
-        duration: Infinity,
-      });
+      toast.error(
+        `${file.name} isn't an image — use JPG, PNG or WEBP (PDFs can't be shown as a photo).`,
+        {
+          duration: Infinity,
+        },
+      );
       return;
     }
     if (!(await isDecodableImage(file))) {
@@ -666,8 +675,8 @@ function TestEditor({
                 }}
               />
               <p className="text-muted-foreground text-xs">
-                Only a starting point. You set the real time for each student when you send the
-                test out.
+                Only a starting point. You set the real time for each student when you send the test
+                out.
               </p>
             </div>
           </div>
@@ -1131,14 +1140,20 @@ function PdfImportDialog({
       setPageImages(result.pageImages);
       setStage("review");
       if (result.questions.length === 0) {
-        toast.error(`Couldn't detect any questions in that ${paperIsWord ? "Word document" : "PDF"}.`, {
-          duration: Infinity,
-        });
+        toast.error(
+          `Couldn't detect any questions in that ${paperIsWord ? "Word document" : "PDF"}.`,
+          {
+            duration: Infinity,
+          },
+        );
       }
     } catch (err) {
-      toast.error(`Couldn't read that file, ${errorMessage(err, "check the file and try again.")}`, {
-        duration: Infinity,
-      });
+      toast.error(
+        `Couldn't read that file, ${errorMessage(err, "check the file and try again.")}`,
+        {
+          duration: Infinity,
+        },
+      );
       setStage("upload");
     }
   }
@@ -1448,7 +1463,11 @@ function PdfImportDialog({
             </Button>
           )}
           {stage === "review" && (
-            <Button type="button" onClick={confirmImport} disabled={draft.length === 0 || confirming}>
+            <Button
+              type="button"
+              onClick={confirmImport}
+              disabled={draft.length === 0 || confirming}
+            >
               {confirming ? (
                 <>
                   <Loader2 className="size-4 animate-spin" /> Adding…
@@ -1655,9 +1674,7 @@ function CropAdjustDialog({
                   key={i}
                   className={cn(
                     "bg-primary/40 absolute",
-                    i < 2
-                      ? "top-0 h-full w-px"
-                      : "left-0 h-px w-full",
+                    i < 2 ? "top-0 h-full w-px" : "left-0 h-px w-full",
                   )}
                   style={
                     i === 0
@@ -1804,7 +1821,7 @@ function AnswerKeyDialog({
       const parsed = parseNumberedAnswers(keyText);
       if (parsed.size === 0) {
         toast.error(
-          "Couldn't find any numbered answers in that — expected something like \"1. C\", one per line.",
+          'Couldn\'t find any numbered answers in that — expected something like "1. C", one per line.',
           { duration: Infinity },
         );
         return;
@@ -1824,9 +1841,12 @@ function AnswerKeyDialog({
       });
       setPreview({ updates, unmatched });
     } catch (err) {
-      toast.error(`Couldn't read that answer key, ${errorMessage(err, "check the file and try again.")}`, {
-        duration: Infinity,
-      });
+      toast.error(
+        `Couldn't read that answer key, ${errorMessage(err, "check the file and try again.")}`,
+        {
+          duration: Infinity,
+        },
+      );
     } finally {
       setBusy(false);
     }
@@ -1835,9 +1855,7 @@ function AnswerKeyDialog({
   function apply() {
     if (!preview) return;
     onApply(preview.updates);
-    toast.success(
-      `Updated ${preview.updates.size} answer${preview.updates.size === 1 ? "" : "s"}`,
-    );
+    toast.success(`Updated ${preview.updates.size} answer${preview.updates.size === 1 ? "" : "s"}`);
     close();
   }
 
@@ -1895,15 +1913,17 @@ function AnswerKeyDialog({
                     <Badge variant="outline" className="font-mono text-[0.65rem]">
                       Q{i + 1}
                     </Badge>
-                    <span className="truncate">{questions[i].options[idx] || `Option ${idx + 1}`}</span>
+                    <span className="truncate">
+                      {questions[i].options[idx] || `Option ${idx + 1}`}
+                    </span>
                   </div>
                 ))}
               </div>
             )}
             {preview.unmatched.length > 0 && (
               <p className="text-muted-foreground text-xs">
-                Left as-is — either no line was found for that question number, or its answer
-                didn't match one of the options. Mark those by hand if needed.
+                Left as-is — either no line was found for that question number, or its answer didn't
+                match one of the options. Mark those by hand if needed.
               </p>
             )}
           </div>
@@ -2311,9 +2331,7 @@ function AssignmentCard({
             </span>
 
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-semibold">
-                {s?.name ?? "Unknown student"}
-              </span>
+              <span className="block truncate font-semibold">{s?.name ?? "Unknown student"}</span>
               <span className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
                 <Badge variant="outline" className="font-mono text-[0.65rem] font-medium">
                   {t?.title ?? "Deleted test"}
@@ -2356,9 +2374,8 @@ function AssignmentCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this test link?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes {s?.name ?? "this student"}'s assignment of "
-              {t?.title ?? "Deleted test"}" for good. If they haven't written it yet, their link
-              will stop working.
+              This removes {s?.name ?? "this student"}'s assignment of "{t?.title ?? "Deleted test"}
+              " for good. If they haven't written it yet, their link will stop working.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
